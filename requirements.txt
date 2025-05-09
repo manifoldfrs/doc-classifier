@@ -3,6 +3,7 @@ Flask==3.0.3
 black
 fastapi
 uvicorn
+dotenv
 
 # Data validation
 pydantic

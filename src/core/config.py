@@ -7,6 +7,9 @@ and loading from environment variables.
 
 from typing import Set
 from pydantic_settings import BaseSettings
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class Settings(BaseSettings):
