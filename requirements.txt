@@ -17,7 +17,3 @@ PyYAML
 # Testing
 pytest==8.3.3
 pytest-mock==3.14.0
-
-# Development
-virtualenv
-werkzeug
