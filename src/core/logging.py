@@ -29,7 +29,7 @@ import logging
 import sys
 import time
 import uuid
-from typing import Awaitable, Callable, Final
+from typing import Awaitable, Callable
 
 # third-party
 import structlog
@@ -46,8 +46,29 @@ __all__: list[str] = [
 # Structlog configuration helpers
 # ---------------------------------------------------------------------------
 
-_JSON_PROCESSORS: Final = [
-    structlog.contextvars.merge_contextvars,  # Inject contextvars (request_id…)
+
+def _ensure_request_context(
+    logger, method_name, event_dict
+):  # noqa: D401 – structlog processor
+    """Guarantee *request_id*, *user* and *path* keys exist in *event_dict*.
+
+    Any missing field is populated with ``None`` so that log-shipping systems
+    relying on a fixed schema (e.g. Elastic Common Schema, Datadog facets)
+    consume uniform payloads.  The processor should execute *after*
+    ``merge_contextvars`` so that bound context has priority over defaults.
+    """
+
+    event_dict.setdefault("request_id", None)
+    event_dict.setdefault("user", None)
+    event_dict.setdefault("path", None)
+    return event_dict
+
+
+# Re-assemble the JSON processor chain with the new helper placed *after*
+# ``merge_contextvars`` so it only fills in missing keys.
+_JSON_PROCESSORS = [
+    structlog.contextvars.merge_contextvars,
+    _ensure_request_context,
     structlog.processors.add_log_level,
     structlog.processors.TimeStamper(fmt="iso"),
     structlog.processors.JSONRenderer(),
@@ -151,6 +172,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 "request_completed",
                 status_code=response.status_code if "response" in locals() else 500,
                 duration_ms=round(duration_ms, 2),
+                user=getattr(request.state, "user", None),
             )
             structlog.contextvars.clear_contextvars()
 

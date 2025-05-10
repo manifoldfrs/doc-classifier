@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "add auth"
+SKIP=mypy git commit -m "add logging"
