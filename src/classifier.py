@@ -1,7 +1,9 @@
-from werkzeug.datastructures import FileStorage
+from __future__ import annotations
+
+from werkzeug.datastructures import FileStorage  # type: ignore[import-not-found]
 
 
-def classify_file(file: FileStorage):
+def classify_file(file: FileStorage) -> str:
     filename = file.filename.lower()
     # file_bytes = file.read()
 

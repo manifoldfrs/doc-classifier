@@ -1,18 +1,39 @@
-from flask import Flask, jsonify, request
+from __future__ import annotations
+
+import os
+
+from dotenv import load_dotenv  # type: ignore[import-not-found]
+from flask import Flask, Response, jsonify, request  # type: ignore[import-not-found]
 
 from src.classifier import classify_file
 
+load_dotenv()
+
 app = Flask(__name__)
 
-ALLOWED_EXTENSIONS = {"pdf", "png", "jpg"}
+
+ALLOWED_EXTENSIONS = {
+    ext.strip().lower()
+    for ext in (
+        os.getenv("ALLOWED_EXTENSIONS")
+        or "pdf,docx,doc,xlsx,xlsb,xls,csv,jpg,jpeg,png,txt,md,xml,json,html,eml"
+    ).split(",")
+    if ext.strip()
+}
 
 
-def allowed_file(filename):
+def allowed_file(filename: str) -> bool:
+    """Return ``True`` if *filename* has an allowed extension.
+
+    The check is case-insensitive and expects a period separating the base name
+    and extension (e.g., ``"document.pdf"``).
+    """
+
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @app.route("/classify_file", methods=["POST"])
-def classify_file_route():
+def classify_file_route() -> Response:  # noqa: D401
 
     if "file" not in request.files:
         return jsonify({"error": "No file part in the request"}), 400

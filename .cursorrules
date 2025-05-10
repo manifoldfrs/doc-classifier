@@ -30,6 +30,7 @@ Build a production-leaning _document-classification micro-service_ that can be s
 6. **Async First** – any I/O (file, network, DB) is `async`/`await`.
 7. **Zero Globals** – use dependency-injection or factory functions.
 8. **Code comments** – only when intent isn't obvious; don't use too many comments.
+9. `__init__.py` – only import modules, not packages. For the most part these should be empty.
 
 ---
 

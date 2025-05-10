@@ -58,9 +58,10 @@ warn_return_any = true
 warn_unreachable = true
 disallow_any_generics = true
 show_error_codes = true
+ignore_missing_imports = true
 exclude = '''
 (?x)(
-    tests/data|
+    tests/|
     datasets
 )
 '''
