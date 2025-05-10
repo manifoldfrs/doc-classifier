@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "add tests for validators & pipeline"
+SKIP=mypy git commit -m "add integration test for files"

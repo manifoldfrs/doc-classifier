@@ -49,3 +49,4 @@ pytest-cov
 pytest-mock
 faker
 coverage
+httpx
