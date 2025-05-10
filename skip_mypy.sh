@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Add CSV & Image OCR adapters"
+SKIP=mypy git commit -m "Add pipeline orchestrator skeleton"
