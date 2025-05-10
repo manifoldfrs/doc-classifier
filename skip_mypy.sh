@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Add global exception & logging middleware"
+SKIP=mypy git commit -m "Add mime/extension validators"
