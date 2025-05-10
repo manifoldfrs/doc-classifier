@@ -22,13 +22,16 @@ fi
 cd "${PROJECT_ROOT}"
 
 # -----------------------------------------------------------------------------
-# Black – code formatting (checks only; does not modify files)
+# Black – code formatting (auto-format in place)
 # -----------------------------------------------------------------------------
-echo "▶ Running Black (format check)…"
-python -m black --check --diff src tests scripts || {
-  echo "\n✖ Black formatting violations detected. Run 'black src tests scripts' to auto-format." >&2
-  exit 1
-}
+echo "▶ Running Black (auto-format)…"
+python -m black src tests scripts
+
+# -----------------------------------------------------------------------------
+# isort – import sorting (auto-sort in place)
+# -----------------------------------------------------------------------------
+echo "▶ Running isort (auto-sort)…"
+python -m isort src tests scripts
 
 # -----------------------------------------------------------------------------
 # Ruff – fast linting & import-sorting checks

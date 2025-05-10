@@ -1,0 +1,159 @@
+###############################################################################
+# src/core/logging.py
+# -----------------------------------------------------------------------------
+# Structured logging utilities and HTTP request middleware.
+#
+# This module centralises all logging concerns for the HeronAI service.  Using
+# **structlog** we emit JSON-formatted log lines that are easy to index and
+# search in cloud log drains (Datadog, CloudWatch, etc.).  We avoid configuring
+# logging in disparate locations; instead a single `configure_logging()` call
+# in `src/api/app.py` sets everything up.
+#
+# Key Features
+# ============
+# 1. JSON logs with timestamp, level, logger, message, and contextual fields.
+# 2. Context-local variables via `structlog.contextvars` allowing each request
+#    to carry a `request_id`, `path`, `method`, and `user` across async calls.
+# 3. `RequestLoggingMiddleware` that records latency per request and appends
+#    the `X-Request-ID` response header so clients can correlate logs.
+#
+# The design strictly follows the "single responsibility" rule: the file only
+# deals with logging concerns.  Any domain-specific error handling lives in
+# `src/api/errors.py`.
+###############################################################################
+
+from __future__ import annotations
+
+# stdlib
+import logging
+import sys
+import time
+import uuid
+from typing import Awaitable, Callable, Final
+
+# third-party
+import structlog
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+__all__: list[str] = [
+    "configure_logging",
+    "RequestLoggingMiddleware",
+]
+
+# ---------------------------------------------------------------------------
+# Structlog configuration helpers
+# ---------------------------------------------------------------------------
+
+_JSON_PROCESSORS: Final = [
+    structlog.contextvars.merge_contextvars,  # Inject contextvars (request_id…)
+    structlog.processors.add_log_level,
+    structlog.processors.TimeStamper(fmt="iso"),
+    structlog.processors.JSONRenderer(),
+]
+
+
+def _configure_stdlib_logging(level: int) -> None:
+    """Configure the built-in *logging* module to route records to structlog.
+
+    The FastAPI ecosystem (Uvicorn, Starlette) still uses stdlib logging.  We
+    therefore configure a **StreamHandler** pointing to *stderr* and set a
+    simple formatter.  Structlog will pick up the record and apply its own
+    processors, ensuring consistent output.
+    """
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setLevel(level)
+    handler.setFormatter(logging.Formatter("%(message)s"))  # structlog formats
+
+    # Remove default handlers to avoid duplicate logs in some runtimes.
+    root_logger.handlers.clear()
+    root_logger.addHandler(handler)
+
+
+def configure_logging(debug: bool = False) -> None:  # noqa: D401 – imperative
+    """Initialise `structlog` for the entire process.
+
+    Call **exactly once** and *before* any loggers are created.  `uvicorn`
+    imports this module *after* its own setup so we cannot rely on its default
+    formatter.  The function is idempotent – multiple calls are safe but no-op
+    after the first.
+
+    Parameters
+    ----------
+    debug:
+        When *True* lowers the log level to ``DEBUG``; otherwise ``INFO``.
+    """
+
+    level: int = logging.DEBUG if debug else logging.INFO
+
+    # Prevent reconfiguration if already initialised (e.g. tests importing the
+    # app multiple times).
+    if getattr(configure_logging, "_configured", False):  # type: ignore[attr-defined]
+        return
+
+    _configure_stdlib_logging(level)
+
+    structlog.configure(
+        wrapper_class=structlog.make_filtering_bound_logger(level),
+        processors=_JSON_PROCESSORS,
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+    configure_logging._configured = True  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# Middleware – HTTP request logging
+# ---------------------------------------------------------------------------
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log each HTTP request with structured details and latency.
+
+    The middleware is inserted **early** in the FastAPI stack so that all
+    downstream handlers inherit the bound `request_id`, `path`, and `method`
+    context variables – this ensures consistency across log entries.
+    """
+
+    async def dispatch(  # noqa: D401 – Starlette middleware signature
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        start: float = time.perf_counter()
+        request_id: str = (
+            request.headers.get("x-request-id") or uuid.uuid4().hex  # 32-char hex
+        )
+
+        # Bind context vars available to *all* subsequent log calls in this task
+        structlog.contextvars.bind_contextvars(
+            request_id=request_id,
+            path=request.url.path,
+            method=request.method,
+        )
+
+        # ------------------------------------------------------------------
+        # Proceed with request processing
+        # ------------------------------------------------------------------
+        try:
+            response: Response = await call_next(request)
+        finally:
+            duration_ms: float = (time.perf_counter() - start) * 1000
+            logger = structlog.get_logger("http")
+            logger.info(
+                "request_completed",
+                status_code=response.status_code if "response" in locals() else 500,
+                duration_ms=round(duration_ms, 2),
+            )
+            structlog.contextvars.clear_contextvars()
+
+        # Add the *same* request-id header so clients can match logs ↔ responses.
+        response.headers["X-Request-ID"] = request_id
+        return response

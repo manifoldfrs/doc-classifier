@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Add docs & update README"
+SKIP=mypy git commit -m "Add global exception & logging middleware"
