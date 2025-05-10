@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "add synthetic data"
+SKIP=mypy git commit -m "restructure tests"
