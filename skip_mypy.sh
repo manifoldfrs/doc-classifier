@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Scaffold FastAPI app & unify with Flask"
+SKIP=mypy git commit -m "Add docs & update README"

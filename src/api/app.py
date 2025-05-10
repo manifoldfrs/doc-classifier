@@ -18,14 +18,12 @@ break, but all implementation now lives here.
 
 from __future__ import annotations
 
-# third-party
-import structlog  # type: ignore
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.wsgi import WSGIMiddleware
 from fastapi.responses import JSONResponse
 
-# local
-from src.app import flask_app  # Legacy WSGI application
+from src.app import flask_app
 from src.core.config import get_settings
 
 __all__: list[str] = ["app"]

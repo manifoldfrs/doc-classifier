@@ -5,8 +5,7 @@ from functools import lru_cache
 from typing import Any, List, Set
 
 # third-party
-from dotenv import load_dotenv
-from pydantic import Field, validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 """Application configuration module.
@@ -53,8 +52,6 @@ _DEFAULT_ALLOWED_EXTENSIONS: Set[str] = {
     "eml",
 }
 
-load_dotenv(override=False)
-
 
 # ---------------------------------------------------------------------------
 # Settings model
@@ -74,15 +71,16 @@ class Settings(BaseSettings):
         alias="DEBUG",
         description="Enable verbose debugging & hot-reload features.",
     )
-    allowed_api_keys: List[str] = Field(
-        default_factory=list,
+    # Raw env strings that are post-processed into structured properties.
+    allowed_api_keys_raw: str = Field(
+        "",
         alias="ALLOWED_API_KEYS",
-        description="Comma-delimited list of static API keys allowed to access the service.",
+        description="Comma-separated API keys (e.g. `key1,key2`).",
     )
-    allowed_extensions: Set[str] = Field(
-        default_factory=lambda: _DEFAULT_ALLOWED_EXTENSIONS.copy(),
+    allowed_extensions_raw: str = Field(
+        ",".join(sorted(_DEFAULT_ALLOWED_EXTENSIONS)),
         alias="ALLOWED_EXTENSIONS",
-        description="Lower-case file extensions accepted by the upload endpoint (comma-separated).",
+        description="Comma-separated list of lowercase extensions.",
     )
 
     # Upload / batch limits
@@ -127,34 +125,29 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         case_sensitive=False,
         extra="ignore",  # Ignore unknown env vars to be forward compatible
+        env_file=".env",  # Auto-load dotenv in local dev
     )
 
-    # ---------------------------------------------------------------------
-    # Validators & post-init hooks
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Computed / derived properties – keep business-logic outside __init__.
+    # ------------------------------------------------------------------
 
-    @validator("allowed_api_keys", pre=True)
-    def _split_api_keys(
-        cls, v: str | List[str]
-    ) -> List[str]:  # noqa: N805 – pydantic naming
-        """Coerce a comma-separated string into a clean ``list[str]``.
+    @property
+    def allowed_api_keys(self) -> List[str]:
+        """Return the parsed list of allowed static API keys."""
 
-        The transformation tolerates surrounding whitespace and empty strings.
-        """
+        return [k.strip() for k in self.allowed_api_keys_raw.split(",") if k.strip()]
 
-        if isinstance(v, list):
-            return v
-        return [key.strip() for key in v.split(",") if key.strip()]
+    @property
+    def allowed_extensions(self) -> Set[str]:
+        """Return the parsed set of lowercase file extensions."""
 
-    @validator("allowed_extensions", pre=True)
-    def _split_extensions(cls, v: str | Set[str]) -> Set[str]:  # noqa: N805
-        """Coerce comma-separated string into a ``set[str]`` of lowercase values."""
+        return {
+            e.strip().lower()
+            for e in self.allowed_extensions_raw.split(",")
+            if e.strip()
+        }
 
-        if isinstance(v, set):
-            return v
-        return {ext.strip().lower() for ext in v.split(",") if ext.strip()}
-
-    @validator("early_exit_confidence")
     def _early_exit_not_below_threshold(
         cls, v: float, values: dict[str, Any]
     ) -> float:  # noqa: N805
