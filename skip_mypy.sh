@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Stage implementations"
+SKIP=mypy git commit -m "Stage implementations (text, ocr)"

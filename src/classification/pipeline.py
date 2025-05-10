@@ -115,12 +115,19 @@ STAGE_REGISTRY: List[StageCallable] = []  # populated in later implementation st
 # Dynamic stage import – executed lazily to avoid circular dependencies
 # ---------------------------------------------------------------------------
 try:
-    from .stages import stage_filename, stage_metadata  # noqa: WPS433 – runtime import
+    from .stages import (
+        stage_filename,  # noqa: WPS433 – runtime import
+        stage_metadata,
+        stage_ocr,
+        stage_text,
+    )
 
     STAGE_REGISTRY.extend(
         [
             stage_filename,  # quick & cheap heuristic
             stage_metadata,  # slightly heavier PDF metadata extraction
+            stage_text,  # statistical/heuristic content analysis
+            stage_ocr,  # fallback OCR for raster images
         ]
     )
 except ModuleNotFoundError:  # pragma: no cover – partially built envs
