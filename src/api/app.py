@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse
 
 # local imports
 from src.api.errors import add_exception_handlers
+from src.api.routes import register_routes  # local import to avoid cycles
 from src.app import flask_app
 from src.core.config import get_settings
 from src.core.logging import RequestLoggingMiddleware, configure_logging
@@ -85,6 +86,10 @@ def _create_fastapi_app() -> FastAPI:  # noqa: D401 – factory
     async def root() -> dict[str, str]:  # noqa: D401
         return {"message": "HeronAI Document Classifier – FastAPI layer"}
 
+    # ------------------------------------------------------------------
+    # Register all versioned API routers (files, admin, etc.)
+    # ------------------------------------------------------------------
+    register_routes(app)
     # ------------------------------------------------------------------
     # Register global exception handlers (HTTP 4xx/5xx → JSON envelope)
     # ------------------------------------------------------------------

@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Add model wrapper"
+SKIP=mypy git commit -m "Add post endpoint"
