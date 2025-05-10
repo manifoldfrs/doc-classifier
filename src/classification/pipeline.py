@@ -54,6 +54,8 @@ import structlog
 from pydantic import BaseModel, Field
 from starlette.datastructures import UploadFile
 
+from src.classification.confidence import aggregate_confidences  # NEW – step 4.4
+
 # local
 from src.core.config import get_settings
 
@@ -176,21 +178,12 @@ async def classify(file: UploadFile) -> ClassificationResult:  # noqa: D401
     # ------------------------------------------------------------------
     stage_outcomes: Dict[str, StageOutcome] = await _execute_stages(file)
 
-    # Fallback when no stages are present (or none yield a label)
-    final_label: str = "unknown"
-    final_confidence: float = 0.0
-
-    # Simple aggregation – pick highest confidence > threshold; ties resolved by
-    # first occurrence.  More sophisticated weighting will land in Step 4.4.
-    for outcome in stage_outcomes.values():
-        if outcome.label and outcome.confidence is not None:
-            if outcome.confidence > final_confidence:
-                final_label = outcome.label
-                final_confidence = outcome.confidence
-
-    # Mark as 'unsure' when below configured threshold
-    if final_confidence < settings.confidence_threshold:
-        final_label = "unsure"
+    # ------------------------------------------------------------------
+    # 2. Aggregate confidences & apply thresholding/early-exit (Step 4.4)
+    # ------------------------------------------------------------------
+    final_label, final_confidence = aggregate_confidences(
+        stage_outcomes, settings=settings
+    )
 
     duration_ms: float = (time.perf_counter() - start) * 1000
 

@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Stage implementations (text, ocr)"
+SKIP=mypy git commit -m "Add confidence aggregator & thresholding"
