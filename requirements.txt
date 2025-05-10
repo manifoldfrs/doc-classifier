@@ -21,6 +21,7 @@ docx2txt
 pandas
 scikit-learn
 pytesseract
+Pillow
 
 # -----------------------------------------------------------------------------
 # Logging & Observability

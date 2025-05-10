@@ -20,9 +20,8 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-import docx2txt  # type: ignore[import-not-found]
-
 # third-party
+import docx2txt  # type: ignore[import-not-found]
 import structlog
 from starlette.datastructures import UploadFile
 

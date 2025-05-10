@@ -36,16 +36,17 @@ skip-string-normalization = false
 line-length = 88
 target-version = "py311"
 
-# Enable common rule sets: pyflakes (F), pycodestyle (E/W), isort (I),
-# bugbear (B).  E501 (line-length) ignored because Black already governs it.
-select = ["E", "F", "W", "B", "I"]
-ignore = ["E501"]
-
-# Exclude data fixtures from lint/type checks
+# Paths to ignore entirely
 exclude = [
     "tests/data",
     "datasets",
 ]
+
+[tool.ruff.lint]
+# Enable common rule sets: pyflakes (F), pycodestyle (E/W), isort (I),
+# bugbear (B).  E501 (line-length) ignored because Black already governs it.
+select = ["E", "F", "W", "B", "I"]
+ignore = ["E501"]
 
 ###############################################################################
 # Static typing – mypy

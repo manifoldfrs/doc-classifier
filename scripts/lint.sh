@@ -21,22 +21,23 @@ if [[ -z "${PROJECT_ROOT}" ]]; then
 fi
 cd "${PROJECT_ROOT}"
 
-# -----------------------------------------------------------------------------
-# Black – code formatting (auto-format in place)
-# -----------------------------------------------------------------------------
+###############################################################################
+# 1. Code formatting – Black
+###############################################################################
 echo "▶ Running Black (auto-format)…"
 python -m black src tests scripts
 
-# -----------------------------------------------------------------------------
-# isort – import sorting (auto-sort in place)
-# -----------------------------------------------------------------------------
-echo "▶ Running isort (auto-sort)…"
-python -m isort src tests scripts
+###############################################################################
+# 2. Import sorting & lint auto-fix – Ruff
+###############################################################################
+# Ruff can both *organise imports* and fix safe violations.  We first run it in
+# *--fix* mode to mutate the working tree, then perform a second *check* pass
+# to fail fast on any remaining offences that require manual attention.
 
-# -----------------------------------------------------------------------------
-# Ruff – fast linting & import-sorting checks
-# -----------------------------------------------------------------------------
-echo "\n▶ Running Ruff…"
+echo "▶ Running Ruff (auto-fix)…"
+python -m ruff check --fix src tests scripts
+
+echo "▶ Running Ruff (verify)…"
 python -m ruff check src tests scripts
 
 # -----------------------------------------------------------------------------

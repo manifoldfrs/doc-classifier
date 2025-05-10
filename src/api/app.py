@@ -24,9 +24,8 @@ from fastapi import FastAPI
 from fastapi.middleware.wsgi import WSGIMiddleware
 from fastapi.responses import JSONResponse
 
+# local imports
 from src.api.errors import add_exception_handlers
-
-# local
 from src.app import flask_app
 from src.core.config import get_settings
 from src.core.logging import RequestLoggingMiddleware, configure_logging

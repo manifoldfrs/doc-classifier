@@ -18,10 +18,15 @@ mime/extension and MUST:
    ML-specific tokenisation.  Those concerns belong in the classification
    stages.
 
-The module also provides the :pydata:`TEXT_EXTRACTORS` dispatch table mapping a
-lower-case file extension (without leading dot) to its corresponding coroutine.
-This enables the future pipeline orchestrator to perform a simple lookup
-instead of multiple `if/elif` blocks.
+Dispatch tables
+===============
+The module also provides two look-up dictionaries for downstream orchestration:
+
+* :pydata:`TEXT_EXTRACTORS` – maps *text-friendly* formats directly parseable
+  without OCR (PDF, DOCX, CSV) to their async extractor.
+* :pydata:`IMAGE_EXTRACTORS` – maps raster image formats to OCR-based
+  extractors.  The classification pipeline will consult this table when
+  falling back to OCR.
 """
 
 from __future__ import annotations
@@ -33,13 +38,18 @@ from typing import Awaitable, Callable, Dict, Final
 from starlette.datastructures import UploadFile
 
 # local – explicit, absolute imports keep mypy happy
+from .csv import extract_text_from_csv  # noqa: F401
 from .docx import extract_text_from_docx  # noqa: F401  (re-exported)
+from .image import extract_text_from_image  # noqa: F401
 from .pdf import extract_text_from_pdf  # noqa: F401
 
 __all__: list[str] = [
     "extract_text_from_pdf",
     "extract_text_from_docx",
+    "extract_text_from_csv",
+    "extract_text_from_image",
     "TEXT_EXTRACTORS",
+    "IMAGE_EXTRACTORS",
 ]
 
 # ---------------------------------------------------------------------------
@@ -48,4 +58,12 @@ __all__: list[str] = [
 TEXT_EXTRACTORS: Final[Dict[str, Callable[[UploadFile], Awaitable[str]]]] = {
     "pdf": extract_text_from_pdf,
     "docx": extract_text_from_docx,
+    "csv": extract_text_from_csv,
+}
+
+# Raster images rely on OCR – defined separately for clarity
+IMAGE_EXTRACTORS: Final[Dict[str, Callable[[UploadFile], Awaitable[str]]]] = {
+    "jpg": extract_text_from_image,
+    "jpeg": extract_text_from_image,
+    "png": extract_text_from_image,
 }
