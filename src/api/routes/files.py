@@ -36,6 +36,7 @@ from src.api.schemas import ClassificationResultSchema
 from src.classification import classify
 from src.core.config import Settings, get_settings
 from src.ingestion.validators import validate_file
+from src.utils.auth import verify_api_key  # NEW – auth dependency
 
 __all__: list[str] = [
     "router",
@@ -44,9 +45,13 @@ __all__: list[str] = [
 logger = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Router configuration
+# Router configuration – API-key authentication enforced globally
 # ---------------------------------------------------------------------------
-router = APIRouter(prefix="/v1", tags=["files"])
+router = APIRouter(
+    prefix="/v1",
+    tags=["files"],
+    dependencies=[Depends(verify_api_key)],
+)
 
 # Threshold beyond which uploads are processed asynchronously (demo-only)
 ASYNC_THRESHOLD: int = 10

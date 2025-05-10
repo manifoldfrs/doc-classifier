@@ -30,6 +30,20 @@ from src.app import flask_app
 from src.core.config import get_settings
 from src.core.logging import RequestLoggingMiddleware, configure_logging
 
+# The Prometheus instrumentation library is an optional dependency enabled via
+# the PROMETHEUS_ENABLED environment variable (see src/core/config.py).  We
+# wrap the import in a *try/except* so that the application still boots even
+# when the package is not installed (e.g. stripped-down CI images).  The
+# variable _PROM_AVAILABLE is used later to guard the actual instrumentation
+# call so we avoid NameError in the except pathway.
+
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator  # type: ignore
+
+    _PROM_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover – optional dependency missing
+    _PROM_AVAILABLE = False
+
 __all__: list[str] = ["app"]
 
 # ---------------------------------------------------------------------------
@@ -88,6 +102,27 @@ def _create_fastapi_app() -> FastAPI:  # noqa: D401 – factory
     # Register global exception handlers (HTTP 4xx/5xx → JSON envelope)
     # ------------------------------------------------------------------
     add_exception_handlers(app)
+
+    # ------------------------------------------------------------------
+    # Prometheus metrics – optional and gated behind env var to keep the
+    # footprint small in environments where metrics scraping is not desired
+    # (e.g. unit-test runners).  When enabled the Instrumentator adds rich
+    # default metrics (latency histograms, request counts, in-progress gauge)
+    # and exposes them under **/metrics** which is *excluded* from the OpenAPI
+    # schema as per best practices.
+    # ------------------------------------------------------------------
+    if settings.prometheus_enabled and _PROM_AVAILABLE:  # pragma: no cover –
+        Instrumentator().instrument(app).expose(  # noqa: WPS437 fluent chain
+            app,
+            endpoint="/metrics",
+            include_in_schema=False,
+        )
+        logger.info("prometheus_instrumentation_enabled")
+    elif settings.prometheus_enabled and not _PROM_AVAILABLE:
+        logger.warning(
+            "prometheus_instrumentation_requested_but_package_missing",
+            advice="Add 'prometheus-fastapi-instrumentator' to requirements.txt",
+        )
 
     return app
 

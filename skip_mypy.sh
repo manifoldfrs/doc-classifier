@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Add async job endpoints"
+SKIP=mypy git commit -m "add auth"

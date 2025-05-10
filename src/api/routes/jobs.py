@@ -36,7 +36,7 @@ from io import BytesIO
 from typing import Dict, List, Optional
 
 # third-party
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 
@@ -44,6 +44,7 @@ from src.api.schemas import ClassificationResultSchema
 
 # local imports – lightweight to avoid circulars
 from src.classification import classify
+from src.utils.auth import verify_api_key  # NEW – auth dependency
 
 __all__: list[str] = [
     "router",
@@ -155,7 +156,11 @@ async def run_job(
 # APIRouter – exposes GET /v1/jobs/{job_id}
 ###############################################################################
 
-router: APIRouter = APIRouter(prefix="/v1", tags=["jobs"])
+router: APIRouter = APIRouter(
+    prefix="/v1",
+    tags=["jobs"],
+    dependencies=[Depends(verify_api_key)],
+)
 
 
 @router.get(

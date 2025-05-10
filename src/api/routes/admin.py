@@ -27,11 +27,12 @@ Design notes
 from __future__ import annotations
 
 # third-party
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 # local
 from src.core.config import get_settings
+from src.utils.auth import verify_api_key
 
 __all__: list[str] = [
     "router",
@@ -41,7 +42,12 @@ __all__: list[str] = [
 # Router instance – mounted with prefix "/v1" by the registration helper.
 # ---------------------------------------------------------------------------
 
-router: APIRouter = APIRouter(prefix="/v1", tags=["admin"], include_in_schema=True)
+router: APIRouter = APIRouter(
+    prefix="/v1",
+    tags=["admin"],
+    include_in_schema=True,
+    dependencies=[Depends(verify_api_key)],
+)
 
 settings = get_settings()
 
