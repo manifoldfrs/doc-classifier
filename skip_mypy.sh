@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Add pipeline orchestrator skeleton"
+SKIP=mypy git commit -m "Stage implementations"

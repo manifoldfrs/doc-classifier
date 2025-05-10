@@ -111,6 +111,23 @@ class ClassificationResult(BaseModel):
 # ---------------------------------------------------------------------------
 STAGE_REGISTRY: List[StageCallable] = []  # populated in later implementation steps
 
+# ---------------------------------------------------------------------------
+# Dynamic stage import – executed lazily to avoid circular dependencies
+# ---------------------------------------------------------------------------
+try:
+    from .stages import stage_filename, stage_metadata  # noqa: WPS433 – runtime import
+
+    STAGE_REGISTRY.extend(
+        [
+            stage_filename,  # quick & cheap heuristic
+            stage_metadata,  # slightly heavier PDF metadata extraction
+        ]
+    )
+except ModuleNotFoundError:  # pragma: no cover – partially built envs
+    # Allows the module to be imported during early CI steps before all stages
+    # exist, in line with the incremental implementation plan.
+    pass
+
 
 # ---------------------------------------------------------------------------
 # Helper utilities – kept private to avoid polluting public namespace
