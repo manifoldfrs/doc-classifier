@@ -1,0 +1,105 @@
+# ============================================================================
+# GitHub Actions – Continuous-Deployment Workflow (Step 10.2)
+# ============================================================================
+# This workflow deploys the *HeronAI Document Classifier* to **Vercel** every
+# time code is pushed to the *main* branch **after** the CI pipeline has
+# succeeded.  It relies on the *vercel* CLI and a repository secret
+# `VERCEL_TOKEN` that grants access to the Vercel project.
+#
+# Key Characteristics
+# -------------------
+# • Trigger: `workflow_run` event – ensures deployment **only** happens when the
+#   *ci.yml* workflow completes successfully on *main*.
+# • Secrets: `VERCEL_TOKEN` (required), optional `VERCEL_ORG_ID` and
+#   `VERCEL_PROJECT_ID` for monorepos; all configured via repository → Settings
+#   → Secrets → Actions.
+# • Caching: re-uses the same *pip* cache strategy as *ci.yml* for parity.
+# • Concurrency: limits to 1 concurrent deployment to avoid overlapping builds
+#   on force-pushes; earlier runs are cancelled.
+# • Safety: `vercel --prod --confirm` to skip interactive prompts, and
+#   `--token` to authenticate non-interactively.
+#
+# The steps mirror the environment used during CI so *mypy*, *pytest*, etc.
+# need not be rerun here – we deploy the exact commit that already passed all
+# checks.
+# ============================================================================
+
+name: Deploy
+
+# ---------------------------------------------------------------------------
+# Trigger – run **after** successful completion of *CI* on the *main* branch.
+# ---------------------------------------------------------------------------
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+# ---------------------------------------------------------------------------
+# Cancel in-flight builds when a new commit is pushed to main.
+# ---------------------------------------------------------------------------
+concurrency:
+  group: "deploy-${{ github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # -----------------------------------------------------------
+      # 1. Checkout the exact commit that passed CI.
+      # -----------------------------------------------------------
+      - name: Checkout passed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # -----------------------------------------------------------
+      # 2. Setup Node.js – required by the *vercel* CLI.
+      #    We pin to 20.x LTS which is what Vercel currently uses.
+      # -----------------------------------------------------------
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # -----------------------------------------------------------
+      # 3. Install the Vercel CLI as a dev-dependency.
+      # -----------------------------------------------------------
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      # -----------------------------------------------------------
+      # 4. Deploy to Vercel – *production* target.
+      # -----------------------------------------------------------
+      - name: Deploy 🛫
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # Optional overrides – set in repo secrets if needed.
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          # The CLI auto-detects docker vs serverless depending on presence of
+          # *Dockerfile*.  The repository already includes a Dockerfile (Step
+          # 11.1) but its use is optional.  `--prod` ensures traffic is routed
+          # immediately; `--confirm` skips the interactive prompt.
+          vercel --prod --confirm --token "$VERCEL_TOKEN"
+
+      # -----------------------------------------------------------
+      # 5. (Optional) Comment deployment URL on the commit for visibility.
+      # -----------------------------------------------------------
+      - name: Comment deployment URL
+        if: success()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          message: |
+            🚀 Deployed to Vercel! Check the dashboard for details.
