@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "WIP: continue implementation"
+SKIP=mypy git commit -m "WIP: continue init"

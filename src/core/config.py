@@ -5,9 +5,9 @@ from functools import lru_cache
 from typing import Any, List, Set
 
 # third-party
-from dotenv import load_dotenv  # type: ignore[import-not-found]
-from pydantic import Field, validator  # type: ignore[import-not-found]
-from pydantic_settings import (  # type: ignore[import-not-found]
+from dotenv import load_dotenv
+from pydantic import Field, validator
+from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
 )
