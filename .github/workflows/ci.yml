@@ -1,29 +1,7 @@
 # ============================================================================
-# GitHub Actions – Continuous-Integration Workflow (Step 10.1)
+# GitHub Actions – Continuous-Integration Workflow
 # ============================================================================
-# This workflow executes the *same* static-analysis and test suite that developers
-# run locally via `./scripts/lint.sh`.  It triggers on every pull-request and on
-# pushes to *main*, ensuring that *only* code passing lint, type-checks, and unit
-# tests can be merged.
-#
-# Key stages
-# ----------
-# 1. **Checkout** – fetch repository contents.
-# 2. **Set-up Python** – use 3.11 (matrix-friendly for future versions).
-# 3. **Dependency install** – leverage `pip` cache for faster rebuilds.
-# 4. **Linters** – Ruff (import-sorting & static lints) and Black (format).
-# 5. **Type-checks** – `mypy --strict` over *src/*.
-# 6. **Tests** – `pytest -q` (coverage threshold enforced in Step 10.3).
-#
-# The job fails immediately on the first non-zero exit-code, providing quick
-# feedback.  All commands are run **non-interactively** and emit plain stdout so
-# GitHub renders them nicely in the *Actions* UI.
-#
-# Notes
-# -----
-# • **SBOM & coverage** artefacts will be added in Implementation Plan Step 10.3.
-# • We intentionally avoid container-services (Postgres, Redis) as the current
-#   test-suite is fully self-contained.
+# Lint ➜ Type-check ➜ Test (with coverage ≥ 95 %) ➜ Upload coverage artefact
 # ============================================================================
 
 name: CI
@@ -48,13 +26,13 @@ jobs:
 
     steps:
       # -----------------------------------------------------
-      # 1. Check-out source
+      # 1. Checkout source
       # -----------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
       # -----------------------------------------------------
-      # 2. Set-up Python with *pip* cache
+      # 2. Set-up Python with pip cache
       # -----------------------------------------------------
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -89,7 +67,18 @@ jobs:
         run: mypy --strict src
 
       # -----------------------------------------------------
-      # 7. Pytest – unit & integration tests
+      # 7. Pytest – unit & integration tests with coverage
+      #     • Threshold enforced via pytest.ini (95 %)
       # -----------------------------------------------------
-      - name: Run tests
+      - name: Run tests (with coverage)
         run: pytest -q
+
+      # -----------------------------------------------------
+      # 8. Upload coverage artefact (always runs for diagnostics)
+      # -----------------------------------------------------
+      - name: Upload coverage XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
