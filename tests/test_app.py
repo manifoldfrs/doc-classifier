@@ -18,7 +18,7 @@ def client():
         ("file.pdf", True),
         ("file.png", True),
         ("file.jpg", True),
-        ("file.txt", False),
+        ("file.txt", True),
         ("file", False),
     ],
 )
