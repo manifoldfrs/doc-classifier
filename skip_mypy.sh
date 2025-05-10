@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Add confidence aggregator & thresholding"
+SKIP=mypy git commit -m "Add model wrapper"
