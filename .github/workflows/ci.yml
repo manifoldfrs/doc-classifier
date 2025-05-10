@@ -1,0 +1,95 @@
+# ============================================================================
+# GitHub Actions – Continuous-Integration Workflow (Step 10.1)
+# ============================================================================
+# This workflow executes the *same* static-analysis and test suite that developers
+# run locally via `./scripts/lint.sh`.  It triggers on every pull-request and on
+# pushes to *main*, ensuring that *only* code passing lint, type-checks, and unit
+# tests can be merged.
+#
+# Key stages
+# ----------
+# 1. **Checkout** – fetch repository contents.
+# 2. **Set-up Python** – use 3.11 (matrix-friendly for future versions).
+# 3. **Dependency install** – leverage `pip` cache for faster rebuilds.
+# 4. **Linters** – Ruff (import-sorting & static lints) and Black (format).
+# 5. **Type-checks** – `mypy --strict` over *src/*.
+# 6. **Tests** – `pytest -q` (coverage threshold enforced in Step 10.3).
+#
+# The job fails immediately on the first non-zero exit-code, providing quick
+# feedback.  All commands are run **non-interactively** and emit plain stdout so
+# GitHub renders them nicely in the *Actions* UI.
+#
+# Notes
+# -----
+# • **SBOM & coverage** artefacts will be added in Implementation Plan Step 10.3.
+# • We intentionally avoid container-services (Postgres, Redis) as the current
+#   test-suite is fully self-contained.
+# ============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: "Lint ↦ Type-check ↦ Test (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      # -----------------------------------------------------
+      # 1. Check-out source
+      # -----------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------
+      # 2. Set-up Python with *pip* cache
+      # -----------------------------------------------------
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # -----------------------------------------------------
+      # 3. Install runtime + dev dependencies
+      # -----------------------------------------------------
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # -----------------------------------------------------
+      # 4. Ruff – static analysis & import-sorting
+      # -----------------------------------------------------
+      - name: Ruff lint
+        run: ruff check .
+
+      # -----------------------------------------------------
+      # 5. Black – code formatting (verify only)
+      # -----------------------------------------------------
+      - name: Black formatting check
+        run: black --check .
+
+      # -----------------------------------------------------
+      # 6. mypy – static type checking (strict mode)
+      # -----------------------------------------------------
+      - name: mypy type-check
+        run: mypy --strict src
+
+      # -----------------------------------------------------
+      # 7. Pytest – unit & integration tests
+      # -----------------------------------------------------
+      - name: Run tests
+        run: pytest -q
