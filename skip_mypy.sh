@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "add logging"
+SKIP=mypy git commit -m "add synthetic data"
