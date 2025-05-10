@@ -21,15 +21,17 @@ from __future__ import annotations
 from fastapi import APIRouter, FastAPI
 
 from . import admin as _admin  # noqa: F401 – imported for side-effects only
+from . import files as _files  # noqa: F401  – imported for side-effects only
+from . import jobs as _jobs  # noqa: F401 – newly added for async batch jobs
 
 # ---------------------------------------------------------------------------
 # Import routers – **strict order** is not important for independent routes.
 # ---------------------------------------------------------------------------
-from . import files as _files  # noqa: F401  – imported for side-effects only
 
 ROUTERS: list[APIRouter] = [
     _files.router,
     _admin.router,
+    _jobs.router,
 ]
 
 __all__: list[str] = [
