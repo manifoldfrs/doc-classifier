@@ -1,0 +1,66 @@
+###############################################################################
+# HeronAI ─ pyproject.toml
+#
+# • Declares build-system so any PEP-517 build backend can build the project.
+# • Centralises configuration for Black, Ruff, and mypy (our required tooling).
+# • Keeps project metadata minimal – we will expand versioning once the model
+#   pipeline is in place.
+#
+# Any tool-specific settings live under their own [tool.*] table to avoid
+# disparate dotfiles.
+###############################################################################
+
+[build-system]
+requires = ["setuptools>=67.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heronai-doc-classifier"
+version = "0.1.0"
+description = "HeronAI scalable document classifier demo"
+authors = [{name = "HeronAI Engineering", email = "engineering@heron.ai"}]
+requires-python = ">=3.11"
+
+###############################################################################
+# Formatting – Black
+###############################################################################
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+skip-string-normalization = false
+
+###############################################################################
+# Linting – Ruff
+###############################################################################
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+# Enable common rule sets: pyflakes (F), pycodestyle (E/W), isort (I),
+# bugbear (B).  E501 (line-length) ignored because Black already governs it.
+select = ["E", "F", "W", "B", "I"]
+ignore = ["E501"]
+
+# Exclude data fixtures from lint/type checks
+exclude = [
+    "tests/data",
+    "datasets",
+]
+
+###############################################################################
+# Static typing – mypy
+###############################################################################
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+warn_return_any = true
+warn_unreachable = true
+disallow_any_generics = true
+show_error_codes = true
+exclude = '''
+(?x)(
+    tests/data|
+    datasets
+)
+'''

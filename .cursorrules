@@ -1,109 +1,138 @@
-# Project Instructions
+# Project Engineering Rules – HeronAI Document Classifier Demo
 
-Your objective is to demonstrate engineering rigor and scalability thinking through a document classifier demo. This is not just about solving a coding challenge—it's about showing maturity in how you architect, write, and think about production-quality systems.
-
-## Tech Stack
-
-- **Backend**: Python + Flask + FastAPI (use async where appropriate)
-- **Infra (future-ready)**: GCP / AWS / Terraform (design with cloud scaling in mind)
-- **Frontend**: Optional React + TypeScript (hosted on Vercel)
-- **CI/CD**: GitHub Actions for test + deploy
-- **Testing**: `pytest`
+These rules apply to every code change, design decision, and pull-request in this repository. These MUST be followed.
 
 ---
 
-## Coding Principles
+## 1. Objective
 
-### Code Quality
-
-- Every module, class, and function must have a single responsibility.
-- Keep all logic well-scoped and testable.
-- No large functions. Refactor aggressively.
-- Avoid over-engineering; design for change, not complexity.
-
-### Readability & Maintainability
-
-- Use clear, intention-revealing names.
-- Don’t write clever code. Write code that a new hire at Heron could understand in one read.
-- Use docstrings only when the code’s intent isn’t self-evident.
-
-### Modularity & Structure
-
-- Break features into logical modules:
-  - ingestion/, classification/, parsing/, api/, tests/
-- Avoid deep inheritance and tight coupling. Prefer composition and isolation.
+Build a production-leaning _document-classification micro-service_ that can be scaled to millions of files per day while remaining **simple, testable, and maintainable**.
 
 ---
 
-## Python Best Practices
+## 2. Tech Stack
 
-- Follow **PEP8** for formatting.
-- Use **type hints** and enforce them (`mypy` optional but preferred).
-- Use `dataclasses` or `Pydantic` models for structure.
-- Avoid catching general `Exception`. Be specific.
-- Handle async/await where I/O is involved.
-
-### Logging
-
-- Use Python’s `logging` module.
-- Use levels wisely: DEBUG for dev-only info, INFO for lifecycle events, ERROR for failures.
-- Avoid `print()` outside of debugging.
+- **Backend**: Python 3.11, **FastAPI** (async) + legacy Flask shim.
+- **Parsing & ML**: pdfminer.six, docx2txt, pandas, scikit-learn, pytesseract.
+- **Infra-ready**: GCP / AWS / Terraform (future); Docker & Vercel for demo deploy.
+- **CI/CD**: GitHub Actions – lint ➜ type-check ➜ test ➜ deploy.
+- **Testing**: `pytest` with ≥ 95 % coverage.
 
 ---
 
-## FastAPI Best Practices
+## 3. Code Quality
 
-- Use **Pydantic** for request validation and data typing.
-- Create **separate routers** for organization.
-- Async all endpoint handlers unless doing CPU-bound work.
-- Handle errors using global exception handlers.
-- Stick to REST conventions. Use clear HTTP status codes.
-
----
-
-## Scalability Considerations
-
-- Design every core component as if it may process **millions of files/day**.
-- Plan for:
-  - Distributed task queues (e.g., Celery)
-  - Pluggable model backends
-  - External file storage (e.g., S3) in production
-- Avoid blocking I/O. Stream files and process in-memory for the demo.
-- Simulate retry logic, even if not needed for demo scale.
+1. **Single Responsibility** – one reason to change per module/class/function.
+2. **Small Units** – max 40 lines per function, 1 public class per file.
+3. **Explicit Types** – 100 % type hints, `mypy --strict` passes in CI.
+4. **Style Guardrails** – `black` (line ≈ 88), `ruff`, no unused code.
+5. **No Catch-all** – never `except Exception`; create domain-specific errors under `core.exceptions`.
+6. **Async First** – any I/O (file, network, DB) is `async`/`await`.
+7. **Zero Globals** – use dependency-injection or factory functions.
+8. **Code comments** – only when intent isn't obvious; don't use too many comments.
 
 ---
 
-## Testing
+## 4. Readability & Maintainability
 
-- Use `pytest`
-- Every pure function must have a test.
-- Test edge cases: empty files, bad filenames, corrupt metadata
-
----
-
-## Deployment Notes
-
-- Project should deploy via Vercel.
-- Structure code to later allow Docker-based deployment.
-- Environment configs should be isolated and toggleable.
-- GitHub Actions should:
-  - Run tests
-  - Deploy on push to main or tag
+- **Intention-Revealing Names** – avoid abbreviations beyond common acronyms.
+- **Minimal Docstrings** – only when intent isn't obvious; use Google style.
+- **Structured Logging** – `structlog` JSON with `request_id`, user, path, and latency.
 
 ---
 
-## General Rules
+## 5. Repository Layout (enforced)
 
-1. **Functionality**: Classifier must work, fallback reliably, and handle ambiguity.
-2. **Code Quality**: Every line added must be clean, scoped, and intentional.
-3. **Scalability**: Write today’s code to be replaceable for tomorrow’s needs.
-4. **Creativity**: You’re allowed to go beyond the prompt if it makes the system better.
-5. **Documentation**: Keep `README.md` up to date. Use it to show thinking, not just commands.
+```
+src/
+  api/            # FastAPI app & routers
+  ingestion/      # file validation & streaming
+  parsing/        # pdf.py, docx.py, csv.py, image.py
+  classification/ # pipeline, stages, model, confidence
+  core/           # config, logging, exceptions
+  utils/          # auth, timers, helpers
+scripts/          # train_model.py, generate_synthetic.py
+tests/            # unit/, integration/, data/
+```
+
+✱ Add new code **only** within these boundaries or justified sub-dirs.
 
 ---
 
-## What to Avoid
+## 6. FastAPI Best Practices
 
-- Don’t over-comment. Clean code should be self-explanatory.
-- Don’t build for multiple users or auth—just simulate the design path.
-- Don’t reach for big ML libraries unless necessary. Keep it lean.
+- Use **Pydantic** for all request/response models.
+- Separate routers by domain (`files.py`, `admin.py`, `jobs.py`).
+- Register global exception & logging middleware in `api/__init__.py`.
+- Provide `/v1/health`, `/v1/version`, `/metrics`, and OpenAPI JSON.
+
+---
+
+## 7. Scalability & Performance
+
+- Stream uploads in 64 KB chunks – never read entire file into memory when unnecessary.
+- Early-exit in classifier pipeline when confidence ≥ 0.9.
+- Make parsing adapters swap-able via strategy pattern.
+- Simulate retry logic with exponential back-off (max 3 attempts).
+
+---
+
+## 8. Testing Matrix
+
+- **Unit** – every pure function or stage.
+- **Integration** – `/v1/files` happy path, edge cases (empty, corrupt, batch > limit).
+- **Load** – Locust hitting `/v1/files` 100 RPS × 5 min (optional).
+- Fail CI if coverage < 95 %.
+
+---
+
+## 9. CI/CD Requirements
+
+- Workflow `ci.yml` steps: `ruff`, `black --check`, `mypy --strict`, `pytest` with coverage, SBOM.
+- Workflow `deploy.yml`: on push to `main`/tag → `vercel --prod`.
+- Artefacts: coverage XML, SBOM.
+
+---
+
+## 10. Deployment & Containerisation
+
+- Provide multi-stage **Dockerfile** (builder → slim runtime).
+- `docker-compose.yml` for local app + Redis + Postgres (optional).
+- Vercel deployment must succeed without Docker; container path opt-in.
+
+---
+
+## 11. Security & Auth
+
+- Header `x-api-key` validated against `ALLOWED_API_KEYS` env.
+- Middleware attaches `request.user`; extendable to JWT.
+- All traffic HTTPS (handled by Vercel).
+
+---
+
+## 12. Observability
+
+- `prometheus_fastapi_instrumentator` for metrics; histogram latency by route.
+- Alert threshold: 5xx rate > 1 % over 5 min.
+
+---
+
+## 13. Documentation
+
+- Keep `README.md` updated – setup, architecture ASCII, hotkeys J/K/L.
+- Add `docs/limitations.md` & `docs/frontend_setup.md` when relevant.
+
+---
+
+## 14. Hotkeys
+
+- **J** – Request deeper dive into pipeline implementation.
+- **K** – Ask for Terraform infra spec.
+- **L** – Open discussion on UI scope.
+
+---
+
+### Non-Negotiables
+
+• All new code merged to `main` _must_ have passing CI and adhere to these rules.
+• Violations trigger code review feedback or CI failure.

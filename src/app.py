@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 
 from src.classifier import classify_file
 
@@ -22,7 +22,7 @@ def classify_file_route():
         return jsonify({"error": "No selected file"}), 400
 
     if not allowed_file(file.filename):
-        return jsonify({"error": f"File type not allowed"}), 400
+        return jsonify({"error": f"File type not allowed: {file.filename}"}), 400
 
     file_class = classify_file(file)
     return jsonify({"file_class": file_class}), 200
