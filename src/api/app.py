@@ -22,7 +22,6 @@ from __future__ import annotations
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.wsgi import WSGIMiddleware
-from fastapi.responses import JSONResponse
 
 # local imports
 from src.api.errors import add_exception_handlers
@@ -74,14 +73,9 @@ def _create_fastapi_app() -> FastAPI:  # noqa: D401 – factory
         logger.info("fastapi_shutdown")
 
     # ------------------------------------------------------------------
-    # Temporary health endpoint (to be superseded by admin router)
+    # Root endpoint – minimal landing page.  More detailed operational routes
+    # (health, version) now live in ``src.api.routes.admin``.
     # ------------------------------------------------------------------
-    @app.get("/v1/health", tags=["admin"], summary="Lightweight health probe")
-    async def health() -> JSONResponse:  # noqa: D401
-        """Return **200 OK** if the service is alive."""
-
-        return JSONResponse({"status": "ok", "commit_sha": settings.commit_sha})
-
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, str]:  # noqa: D401
         return {"message": "HeronAI Document Classifier – FastAPI layer"}

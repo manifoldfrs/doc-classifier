@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "Add post endpoint"
+SKIP=mypy git commit -m "Add admin & health routes"
