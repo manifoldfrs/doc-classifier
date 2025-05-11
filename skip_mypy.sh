@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "make pipeline version configurable"
+SKIP=mypy git commit -m "refactor model config validation"

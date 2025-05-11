@@ -3,10 +3,10 @@ from __future__ import annotations
 # stdlib
 import os
 from functools import lru_cache
-from typing import Any, List, Set
+from typing import List, Set
 
 # third-party
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 """Application configuration module.
@@ -154,15 +154,21 @@ class Settings(BaseSettings):
             if e.strip()
         }
 
-    def _early_exit_not_below_threshold(
-        cls, v: float, values: dict[str, Any]
-    ) -> float:  # noqa: N805
-        """Ensure early-exit confidence is not lower than base threshold."""
+    @model_validator(mode="after")
+    def validate_confidence_thresholds(self) -> "Settings":
+        """Ensure early_exit_confidence is not lower than confidence_threshold.
 
-        threshold = float(values.get("confidence_threshold", 0))
-        if v < threshold:
-            raise ValueError("EARLY_EXIT_CONFIDENCE must be >= CONFIDENCE_THRESHOLD")
-        return v
+        This validator runs after all individual fields have been initialized
+        and parsed. It checks the logical consistency between
+        `early_exit_confidence` and `confidence_threshold`.
+        """
+        if self.early_exit_confidence < self.confidence_threshold:
+            raise ValueError(
+                "EARLY_EXIT_CONFIDENCE must be >= CONFIDENCE_THRESHOLD. "
+                f"Got early_exit_confidence={self.early_exit_confidence}, "
+                f"confidence_threshold={self.confidence_threshold}"
+            )
+        return self
 
     # ------------------------------------------------------------------
     # Convenience helpers
