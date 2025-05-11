@@ -27,8 +27,16 @@ from typing import Dict, Pattern
 
 # third-party
 import structlog
-from pdfminer.pdfdocument import PDFDocument  # type: ignore[import-not-found]
-from pdfminer.pdfparser import PDFParser  # type: ignore[import-not-found]
+from pdfminer.pdfdocument import (  # type: ignore[import-not-found]
+    PDFDocument,
+    PDFEncryptionError,
+    PDFTextExtractionNotAllowed,
+)
+from pdfminer.pdfparser import (  # type: ignore[import-not-found]
+    PDFParser,
+    PDFSyntaxError,
+)
+from pdfminer.psparser import PSEOF, PSSyntaxError  # type: ignore[import-not-found]
 from starlette.datastructures import UploadFile
 
 # local
@@ -76,10 +84,36 @@ async def _extract_pdf_metadata(pdf_bytes: bytes) -> str:
                     try:
                         parts.append(str(val))
                     except Exception:  # noqa: BLE001 narrow conversions vary
+                        # This inner try-except is for individual metadata value
+                        # conversions which can be problematic.
                         pass
             return " \n".join(parts)
-        except Exception as exc:  # noqa: BLE001 pdfminer raises many types
-            logger.warning("metadata_pdf_extraction_failed", error=str(exc))
+        except (
+            PDFSyntaxError,
+            PSEOF,
+            PSSyntaxError,
+            TypeError,  # Can be raised by pdfminer on malformed objects
+            ValueError,  # Can be raised on unexpected values
+        ) as exc:
+            logger.warning(
+                "metadata_pdf_parsing_failed",
+                error=str(exc),
+                exc_type=type(exc).__name__,
+            )
+            return ""
+        except (PDFEncryptionError, PDFTextExtractionNotAllowed) as exc:
+            logger.warning(
+                "metadata_pdf_access_denied",
+                error=str(exc),
+                exc_type=type(exc).__name__,
+            )
+            return ""
+        except Exception as exc:  # noqa: BLE001 – Fallback for other pdfminer issues
+            logger.error(
+                "metadata_pdf_extraction_unexpected_error",
+                error=str(exc),
+                exc_type=type(exc).__name__,
+            )
             return ""
 
     return await asyncio.to_thread(_worker)
@@ -112,5 +146,5 @@ async def stage_metadata(file: UploadFile) -> StageOutcome:  # noqa: D401
             )
             return StageOutcome(label=label, confidence=_CONFIDENCE_SCORE)
 
-    logger.debug("metadata_stage_no_match", filename=file.filename)
+    logger.debug("filename_stage_no_match", filename=file.filename)
     return StageOutcome()

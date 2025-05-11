@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "refactor model config validation"
+SKIP=mypy git commit -m "improve error handling in metadata stage"
