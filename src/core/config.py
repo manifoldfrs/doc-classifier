@@ -43,24 +43,6 @@ without breaking existing deployments.
 # Defaults & constants
 # ---------------------------------------------------------------------------
 
-_DEFAULT_ALLOWED_EXTENSIONS: Set[str] = {
-    "pdf",
-    "docx",
-    "xlsx",
-    "xls",
-    "csv",
-    "jpg",
-    "jpeg",
-    "png",
-    "tiff",
-    "tif",
-    "gif",
-    "bmp",
-    "eml",
-    "msg",
-    "txt",
-}
-
 
 # Helper for parsing comma-separated values
 def _parse_csv_str(v: str) -> List[str]:
@@ -157,10 +139,10 @@ class Settings(BaseSettings):
         # caused test expectations to fail.
 
         if self.allowed_extensions_raw is None:
-            # Raw value unset ➜ fall back to the baked-in defaults.
-            self.allowed_extensions = _DEFAULT_ALLOWED_EXTENSIONS
+            # Nothing configured – disallow all extensions by default.
+            self.allowed_extensions = set()
         else:
-            # Empty string means "no extensions allowed".
+            # Empty string means "no extensions allowed"; otherwise parse.
             self.allowed_extensions = {
                 ext.strip().lower().lstrip(".")
                 for ext in self.allowed_extensions_raw.split(",")

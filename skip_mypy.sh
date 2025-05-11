@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "increase test coverage to 80%"
+SKIP=mypy git commit -m "remove redundant constants"
