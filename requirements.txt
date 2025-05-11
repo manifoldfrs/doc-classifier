@@ -45,6 +45,7 @@ requests
 # Testing
 # -----------------------------------------------------------------------------
 pytest
+pytest-asyncio
 pytest-cov
 pytest-mock
 faker

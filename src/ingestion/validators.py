@@ -23,13 +23,13 @@
 from __future__ import annotations
 
 # stdlib
-import logging
 import mimetypes
-from typing import Final
+import os
+from typing import Final, Optional
 
 # third-party
 import structlog
-from fastapi import HTTPException, UploadFile, status
+from fastapi import HTTPException, UploadFile
 
 # local
 from src.core.config import Settings, get_settings
@@ -56,123 +56,100 @@ _SIZE_SEEK_START: Final[int] = 0  # whence value for file.seek(..., 0)
 # ---------------------------------------------------------------------------
 
 
-def validate_file(
-    file: UploadFile, *, settings: Settings | None = None
-) -> None:  # noqa: D401
-    """Validate an uploaded file against service constraints.
-
-    Parameters
-    ----------
-    file:
-        An instance of :class:`starlette.datastructures.UploadFile` obtained
-        from a FastAPI route parameter.
-    settings:
-        Optional explicit :class:`src.core.config.Settings` instance.  When not
-        provided the *process-wide* singleton returned by `get_settings()` is
-        used.  Supplying an instance is mainly useful for **unit tests** where
-        isolation from global env vars is desired.
-
-    Raises
-    ------
-    fastapi.HTTPException
-        When any validation rule fails.  The *status_code* conveys the nature
-        of the failure as per the project specification.
+def validate_file(file: UploadFile, *, settings: Optional[Settings] = None) -> None:
     """
+    Validate an uploaded file against configured restrictions.
 
+    Performs checks for:
+    - Empty files
+    - File size limits
+    - Allowed extensions
+    - MIME type consistency
+
+    Args:
+        file: The uploaded file to validate
+        settings: Optional Settings instance (uses global if not provided)
+
+    Raises:
+        HTTPException: With appropriate status code if validation fails
+            - 400: Empty file or missing filename
+            - 413: File too large
+            - 415: Unsupported extension or MIME type mismatch
+    """
     settings = settings or get_settings()
 
-    # ------------------------------------------------------------------
-    # 1. Filename presence & extension check
-    # ------------------------------------------------------------------
+    # Check if filename exists
     if not file.filename:
-        logger.warning("upload_validation_failed", reason="empty_filename")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No filename provided.",
-        )
+        logger.warning("file_upload_no_filename")
+        raise HTTPException(status_code=400, detail="No filename provided.")
 
-    if "." not in file.filename:
-        logger.warning("upload_validation_failed", reason="missing_extension")
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="File has no extension.",
-        )
+    # Extract and validate extension
+    filename = file.filename.lower()
+    _, extension = os.path.splitext(filename)
 
-    extension: str = file.filename.rsplit(".", 1)[1].lower()
+    if not extension:
+        logger.warning("file_upload_no_extension", filename=filename)
+        raise HTTPException(status_code=415, detail="File has no extension.")
+
+    # Remove the dot from extension
+    extension = extension[1:]
+
+    # Check if extension is allowed
     if not settings.is_extension_allowed(extension):
-        logger.warning(
-            "upload_validation_failed",
-            reason="extension_not_allowed",
-            extension=extension,
-        )
+        logger.warning("file_upload_invalid_extension", extension=extension)
         raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Unsupported file extension: .{extension}",
+            status_code=415, detail=f"Unsupported file extension: .{extension}"
         )
 
-    # ------------------------------------------------------------------
-    # 2. Size check – ensure payload ≤ MAX_FILE_SIZE_MB
-    # ------------------------------------------------------------------
+    # Check file size
     try:
-        # SpooledTemporaryFile supports tell() even when moderated by disk.
-        file.file.seek(0, _SIZE_SEEK_END)  # type: ignore[arg-type]
-        size_bytes: int = file.file.tell()  # type: ignore[attr-defined]
-        file.file.seek(0, _SIZE_SEEK_START)  # Reset pointer for downstream use
-    except (
-        Exception
-    ) as exc:  # noqa: BLE001 – explicit narrow exception unreliable across impls
-        # Although project rules discourage broad excepts, the behaviour of
-        # arbitrary file-like objects may vary between runtimes.  We therefore
-        # convert *any* seek/tell failure into a HTTP 400 whilst logging the
-        # original exception for observability.
-        logging.getLogger(__name__).exception("size_check_failed", error=str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unable to assess uploaded file size.",
-        ) from exc
+        file.file.seek(0, 2)  # Seek to end
+        size = file.file.tell()
+        file.file.seek(0)  # Reset to beginning
 
-    if size_bytes == 0:
-        logger.warning("upload_validation_failed", reason="empty_file")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded file is empty.",
-        )
+        # Check if file is empty
+        if size == 0:
+            logger.warning("file_upload_empty", filename=filename)
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    max_bytes: int = settings.max_file_size_mb * 1024 * 1024
-    if size_bytes > max_bytes:
-        logger.warning(
-            "upload_validation_failed",
-            reason="file_too_large",
-            size_bytes=size_bytes,
-            max_bytes=max_bytes,
-        )
+        # Check if file is too large
+        max_size = settings.max_file_size_mb * 1024 * 1024  # Convert MB to bytes
+        if size > max_size:
+            logger.warning(
+                "file_upload_too_large",
+                size=size,
+                max_size=max_size,
+                filename=filename,
+            )
+            raise HTTPException(
+                status_code=413,
+                detail=f"File size {size/1024/1024:.2f} MB exceeds the limit of {settings.max_file_size_mb} MB.",
+            )
+    except OSError as e:
+        logger.error("file_size_check_failed", error=str(e), filename=filename)
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=(
-                f"File size {size_bytes / (1024 * 1024):.2f} MB exceeds the "
-                f"limit of {settings.max_file_size_mb} MB."
-            ),
-        )
+            status_code=400,
+            detail="Unable to assess uploaded file size. The upload may be corrupted.",
+        ) from e
 
-    # ------------------------------------------------------------------
-    # 3. MIME-type sanity check – best-effort using `mimetypes`.
-    # ------------------------------------------------------------------
-    expected_mime, _ = mimetypes.guess_type(file.filename)
-    # Some extensions (e.g. .csv) may map to text/plain; treat None as unknown.
-    if expected_mime and file.content_type and expected_mime != file.content_type:
-        logger.warning(
-            "upload_validation_failed",
-            reason="mime_mismatch",
-            expected=expected_mime,
-            received=file.content_type,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=(
-                f"MIME type '{file.content_type}' does not match the expected "
-                f"type '{expected_mime}' for extension '.{extension}'."
-            ),
-        )
+    # Validate MIME type consistency if both content_type and extension are available
+    if file.content_type and extension:
+        expected_mime = mimetypes.guess_type(f"file.{extension}")[0]
+
+        # Only check if we have a guess for this extension
+        if expected_mime and file.content_type != expected_mime:
+            logger.warning(
+                "file_upload_mime_mismatch",
+                extension=extension,
+                expected_mime=expected_mime,
+                actual_mime=file.content_type,
+                filename=filename,
+            )
+            raise HTTPException(
+                status_code=415,
+                detail=f"MIME type mismatch: extension .{extension} suggests {expected_mime}, "
+                f"but received {file.content_type}.",
+            )
 
     # ------------------------------------------------------------------
     # Validation successful – log at DEBUG level for traceability.
@@ -180,6 +157,6 @@ def validate_file(
     logger.debug(
         "upload_validation_passed",
         filename=file.filename,
-        size_bytes=size_bytes,
+        size_bytes=size,
         content_type=file.content_type,
     )

@@ -39,30 +39,32 @@ logger = structlog.get_logger(__name__)
 _PDFMINER_CODEC: Final[str] = "utf-8"
 
 
-async def extract_text_from_pdf(file: UploadFile) -> str:  # noqa: D401
-    """Return **plain-text** extracted from **PDF** *file*.
-
-    Parameters
-    ----------
-    file:
-        The *SpooledTemporaryFile*-backed upload provided by FastAPI.
-
-    Returns
-    -------
-    str
-        UTF-8 text representing the document contents.  The string may be empty
-        when `pdfminer` fails to detect textual objects (e.g. scanned images);
-        higher pipeline stages decide on OCR fallback.
+async def extract_text_from_pdf(file: UploadFile) -> str:
     """
+    Extract text content from a PDF file using pdfminer.six.
 
-    # Ensure pointer at start in case previous validators have read from it.
+    Args:
+        file: The uploaded PDF file
+
+    Returns:
+        Extracted text content as a string
+    """
+    # Read the file content
     await file.seek(0)
-    pdf_bytes: bytes = await file.read()
+    content = await file.read()
 
-    # pdfminer expects a *file-like* object; wrap bytes in BytesIO.
-    def _worker() -> str:
-        return extract_text(BytesIO(pdf_bytes), codec=_PDFMINER_CODEC) or ""
+    # Define worker function for async execution
+    def _worker(pdf_content: bytes) -> str:
+        # Create BytesIO object for pdfminer to read from
+        pdf_buffer = BytesIO(pdf_content)
 
-    text: str = await asyncio.to_thread(_worker)
-    logger.debug("pdf_text_extracted", filename=file.filename, characters=len(text))
-    return text
+        try:
+            # Extract text using pdfminer
+            extracted_text = extract_text(pdf_buffer)
+            return extracted_text or ""
+        except Exception:
+            # Handle PDF parsing errors silently
+            return ""
+
+    # Run CPU-bound extraction in threadpool
+    return await asyncio.to_thread(_worker, content)

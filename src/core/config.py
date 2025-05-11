@@ -1,12 +1,22 @@
+"""src/core/config.py
+###############################################################################
+Application configuration
+###############################################################################
+This module provides a centralized configuration class using Pydantic for
+parsing and validating settings from environment variables.
+"""
+
 from __future__ import annotations
+
+import json
 
 # stdlib
 import os
 from functools import lru_cache
-from typing import List, Set
+from typing import Any, List, Optional, Set
 
 # third-party
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 """Application configuration module.
@@ -54,137 +64,157 @@ _DEFAULT_ALLOWED_EXTENSIONS: Set[str] = {
 }
 
 
+# Helper for parsing comma-separated values
+def _parse_csv_str(v: str) -> List[str]:
+    """Parse a comma-separated string into a list of values."""
+    return [x.strip() for x in v.split(",") if x.strip()]
+
+
+# ---------------------------------------------------------------------------
+# Environment *pre-processing* – normalise problematic variables before Pydantic
+# ---------------------------------------------------------------------------
+
+# Ensure ``ALLOWED_API_KEYS`` is **JSON** so that Pydantic can coerce it into a
+# ``List[str]`` without raising ``SettingsError``.  Developers may prefer the
+# more convenient comma-separated style in *.env* files which would otherwise
+# trip Pydantic's strict JSON parser.
+
+_env_api_keys = os.environ.get("ALLOWED_API_KEYS")
+if _env_api_keys and "[" not in _env_api_keys:
+    os.environ["ALLOWED_API_KEYS"] = json.dumps(_parse_csv_str(_env_api_keys))
+
+# Normalise ``ALLOWED_EXTENSIONS`` for the same reason – maintain developer
+# convenience while satisfying Pydantic's strict JSON requirement for complex
+# types.
+
+_env_allowed_ext = os.environ.get("ALLOWED_EXTENSIONS")
+if _env_allowed_ext and "[" not in _env_allowed_ext:
+    os.environ["ALLOWED_EXTENSIONS"] = json.dumps(_parse_csv_str(_env_allowed_ext))
+
 # ---------------------------------------------------------------------------
 # Settings model
 # ---------------------------------------------------------------------------
 
 
 class Settings(BaseSettings):
-    """Typed configuration read from environment variables.
-
-    Field names are *snake_case* by convention.  Environment variables are
-    specified in *UPPER_SNAKE_CASE* and linked to their respective fields via
-    the ``alias`` parameter on :pyclass:`pydantic.Field`.
+    """
+    Application configuration settings, loaded from environment variables.
     """
 
-    debug: bool = Field(
-        False,
-        alias="DEBUG",
-        description="Enable verbose debugging & hot-reload features.",
-    )
-    # Raw env strings that are post-processed into structured properties.
-    allowed_api_keys_raw: str = Field(
-        "",
-        alias="ALLOWED_API_KEYS",
-        description="Comma-separated API keys (e.g. `key1,key2`).",
-    )
-    allowed_extensions_raw: str = Field(
-        ",".join(sorted(_DEFAULT_ALLOWED_EXTENSIONS)),
-        alias="ALLOWED_EXTENSIONS",
-        description="Comma-separated list of lowercase extensions.",
-    )
+    # Basic app settings
+    debug: bool = False
+    pipeline_version: str = "v0.1.0"
+    commit_sha: Optional[str] = None
+    prometheus_enabled: bool = True
 
-    # Upload / batch limits
-    max_file_size_mb: int = Field(
-        10,
-        alias="MAX_FILE_SIZE_MB",
-        description="Maximum size (in MB) of a single uploaded file.",
-    )
-    max_batch_size: int = Field(
-        50,
-        alias="MAX_BATCH_SIZE",
-        description="Maximum number of files allowed in a single batch request.",
-    )
+    # API key configuration
+    allowed_api_keys: List[str] = Field(default_factory=list)
 
-    # Classification parameters
-    confidence_threshold: float = Field(
-        0.65,
-        alias="CONFIDENCE_THRESHOLD",
-        description="Minimum aggregated confidence score required to return a label.",
+    # File upload settings
+    allowed_extensions_raw: str = (
+        "pdf,docx,xlsx,xls,csv,jpg,jpeg,png,tiff,tif,gif,bmp,eml,msg,txt"
     )
-    early_exit_confidence: float = Field(
-        0.9,
-        alias="EARLY_EXIT_CONFIDENCE",
-        description="If any single stage exceeds this score the pipeline short-circuits.",
-    )
-    pipeline_version: str = Field(
-        "v0.1.0",
-        alias="PIPELINE_VERSION",
-        description="Semantic version of the classification pipeline.",
-    )
+    allowed_extensions: Set[str] = set()
+    max_file_size_mb: int = 10
+    max_batch_size: int = 50
 
-    # Observability
-    prometheus_enabled: bool = Field(
-        True,
-        alias="PROMETHEUS_ENABLED",
-        description="Toggle for Prometheus metric exposition.",
-    )
+    # Classification confidence settings
+    confidence_threshold: float = 0.65
+    early_exit_confidence: float = 0.9
 
-    # Misc – automatically set by Vercel / CI, but defaults help local dev
-    commit_sha: str | None = Field(
-        None,
-        alias="GIT_COMMIT_SHA",
-        description="Short git SHA embedded into health/version endpoints.",
-    )
-
-    # Pydantic-Settings configuration
     model_config = SettingsConfigDict(
-        case_sensitive=False,
-        extra="ignore",  # Ignore unknown env vars to be forward compatible
-        env_file=".env",  # Auto-load dotenv in local dev
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        env_nested_delimiter=None,
+        json_schema_extra={"example": {"allowed_api_keys": ["key1", "key2"]}},
+        # Disable automatic JSON parsing globally – custom validators will handle coercion.
+        enable_decoding=False,
+        protected_namespaces=("protect_", "private_"),
     )
-
-    # ------------------------------------------------------------------
-    # Computed / derived properties – keep business-logic outside __init__.
-    # ------------------------------------------------------------------
-
-    @property
-    def allowed_api_keys(self) -> List[str]:
-        """Return the parsed list of allowed static API keys."""
-
-        return [k.strip() for k in self.allowed_api_keys_raw.split(",") if k.strip()]
-
-    @property
-    def allowed_extensions(self) -> Set[str]:
-        """Return the parsed set of lowercase file extensions."""
-
-        return {
-            e.strip().lower()
-            for e in self.allowed_extensions_raw.split(",")
-            if e.strip()
-        }
 
     @model_validator(mode="after")
-    def validate_confidence_thresholds(self) -> "Settings":
-        """Ensure early_exit_confidence is not lower than confidence_threshold.
+    def parse_settings(self) -> "Settings":
+        """Process all settings after validation."""
+        # Parse API keys from environment if needed
+        if not self.allowed_api_keys and os.environ.get("ALLOWED_API_KEYS"):
+            self.allowed_api_keys = _parse_csv_str(os.environ["ALLOWED_API_KEYS"])
 
-        This validator runs after all individual fields have been initialized
-        and parsed. It checks the logical consistency between
-        `early_exit_confidence` and `confidence_threshold`.
-        """
-        if self.early_exit_confidence < self.confidence_threshold:
-            raise ValueError(
-                "EARLY_EXIT_CONFIDENCE must be >= CONFIDENCE_THRESHOLD. "
-                f"Got early_exit_confidence={self.early_exit_confidence}, "
-                f"confidence_threshold={self.confidence_threshold}"
-            )
+        # Parse extensions
+        if not self.allowed_extensions:
+            if self.allowed_extensions_raw:
+                self.allowed_extensions = {
+                    ext.strip().lower().lstrip(".")
+                    for ext in self.allowed_extensions_raw.split(",")
+                    if ext.strip()
+                }
+            else:
+                self.allowed_extensions = _DEFAULT_ALLOWED_EXTENSIONS
+
         return self
 
-    # ------------------------------------------------------------------
-    # Convenience helpers
-    # ------------------------------------------------------------------
+    @field_validator("early_exit_confidence")
+    @classmethod
+    def validate_confidence_thresholds(cls, v: float, info: Any) -> float:
+        """Validate confidence thresholds (early_exit must be >= confidence)."""
+        values = info.data
+        confidence = values.get("confidence_threshold", 0.65)
+        if v < confidence:
+            raise ValueError("EARLY_EXIT_CONFIDENCE must be >= CONFIDENCE_THRESHOLD")
+        return v
 
     def is_extension_allowed(self, extension: str) -> bool:
-        """Check whether a *file extension* is accepted by the service.
-
-        Parameters
-        ----------
-        extension:
-            The extension **without** leading dot, case insensitive.  E.g.
-            ``"pdf"`` or ``"PDF"``.
         """
+        Check if file extension is allowed.
 
-        return extension.lower() in self.allowed_extensions
+        Args:
+            extension: The file extension to check (with or without leading dot)
+
+        Returns:
+            True if extension is allowed, False otherwise
+        """
+        if not extension:
+            return False
+
+        # Normalize extension (remove dot, lowercase)
+        clean_ext = extension.lower().lstrip(".")
+        return clean_ext in self.allowed_extensions
+
+    @field_validator("allowed_api_keys", mode="before")
+    @classmethod
+    def _coerce_allowed_api_keys(cls, v: Any) -> List[str]:  # noqa: D401
+        """Allow comma-separated string in addition to a proper JSON array."""
+
+        if isinstance(v, str):
+            return _parse_csv_str(v)
+        if v is None:
+            return []
+        return v
+
+    @field_validator("allowed_extensions", mode="before")
+    @classmethod
+    def _coerce_allowed_extensions(cls, v: Any) -> Set[str]:
+        """Convert comma or JSON strings into a set[str]."""
+
+        if v is None or v == "":
+            return set()
+
+        if isinstance(v, str):
+            # Accept comma-separated or JSON string formats
+            if v.strip().startswith("["):
+                try:
+                    parsed: list[str] = json.loads(v)
+                    return {ext.strip().lower().lstrip(".") for ext in parsed if ext}
+                except json.JSONDecodeError:
+                    pass
+            return {
+                ext.strip().lower().lstrip(".") for ext in v.split(",") if ext.strip()
+            }
+        if isinstance(v, (list, set, tuple)):
+            return {
+                str(ext).strip().lower().lstrip(".") for ext in v if str(ext).strip()
+            }
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -193,14 +223,18 @@ class Settings(BaseSettings):
 
 
 @lru_cache()
-def get_settings() -> Settings:  # pragma: no cover – wrapper delegates to Settings()
-    """Return a cached :class:`Settings` instance.
-
-    Cache is cleared for tests if `PYTEST_CURRENT_TEST` is set to ensure
-    test isolation with regards to settings.
+def get_settings() -> Settings:
     """
-    # Check if running in a pytest environment and clear cache if so.
-    # This is a common pattern to ensure tests get fresh settings if they modify environment variables.
+    Get cached instance of application settings.
+
+    In test environments (when PYTEST_CURRENT_TEST is set),
+    this bypasses the cache to provide fresh instances for each test.
+    """
+    # Always return a fresh instance when running pytest to avoid test side effects
     if "PYTEST_CURRENT_TEST" in os.environ:
         get_settings.cache_clear()
+        settings = Settings()
+        if os.environ.get("ALLOWED_API_KEYS") and not settings.allowed_api_keys:
+            settings.allowed_api_keys = _parse_csv_str(os.environ["ALLOWED_API_KEYS"])
+        return settings
     return Settings()

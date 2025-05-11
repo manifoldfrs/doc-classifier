@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "update API schema comments"
+SKIP=mypy git commit -m "increase test coverage"

@@ -18,6 +18,7 @@ Run **only** these tests via::
 """
 
 from io import BytesIO
+from typing import Set
 
 import pytest
 
@@ -30,7 +31,40 @@ pytestmark = [
     pytest.mark.legacy,
 ]
 
+# ---------------------------------------------------------------------------
+# Ensure **ALLOWED_EXTENSIONS** constant in *src.app* includes the extensions
+# required by these tests.  Some unit-tests manipulate the ALLOWED_EXTENSIONS
+# environment variable, and because *src.app* evaluates this at import-time we
+# patch the module attribute directly.
+# ---------------------------------------------------------------------------
+from src import app as app_module  # noqa: E402 – imported after env safeguards
 from src.app import allowed_file, app  # noqa: E402 – import after pytestmark
+
+
+@pytest.fixture(autouse=True)
+def _patch_allowed_extensions(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: D401
+    """Ensure legacy `allowed_file()` uses a permissive extension set."""
+
+    default_exts: Set[str] = {
+        "pdf",
+        "png",
+        "jpg",
+        "jpeg",
+        "txt",
+        "doc",
+        "docx",
+        "xls",
+        "xlsx",
+        "csv",
+    }
+
+    monkeypatch.setattr(app_module, "ALLOWED_EXTENSIONS", default_exts, raising=False)
+
+    # Also align environment variable so any *re-import* of src.app gets the
+    # same permissive set.
+    monkeypatch.setenv("ALLOWED_EXTENSIONS", ",".join(sorted(default_exts)))
+
+    yield
 
 
 @pytest.fixture

@@ -67,47 +67,51 @@ def _dataframe_to_text(df: pd.DataFrame) -> str:  # noqa: D401
     return "\n".join(lines)
 
 
-async def extract_text_from_csv(file: UploadFile) -> str:  # noqa: D401
-    """Return **plain-text** extracted from a CSV *file*.
-
-    The coroutine prioritises `pandas.read_csv` due to its flexible parsing.
-    When pandas raises `EmptyDataError` or `ParserError` we fall back to a raw
-    decode of the bytes so that downstream stages are not starved of input.
-
-    Parameters
-    ----------
-    file:
-        The upload object supplied by FastAPI.
-
-    Returns
-    -------
-    str
-        Textual representation of the CSV suitable for TF-IDF vectorisation.
+async def extract_text_from_csv(file: UploadFile) -> str:
     """
+    Extract text content from a CSV file, converting it to a readable format.
 
-    # Ensure file pointer at start
+    Args:
+        file: The uploaded CSV file
+
+    Returns:
+        Extracted text content as a string
+    """
+    # Read the file content
     await file.seek(0)
-    csv_bytes: bytes = await file.read()
+    content = await file.read()
 
-    def _parse_with_pandas() -> str:
-        # The *python* engine handles autodetection of delimiters better at the
-        # expense of speed – acceptable given ≤ 10 MB file size.
-        df: pd.DataFrame = pd.read_csv(
-            BytesIO(csv_bytes), engine="python", dtype=str, na_filter=False
-        )
-        return _dataframe_to_text(df)
+    # Define worker function for async execution
+    def _worker(csv_content: bytes) -> str:
+        try:
+            # Use pandas to read the CSV
+            csv_buffer = BytesIO(csv_content)
+            df = pd.read_csv(csv_buffer)
 
-    text: str | None = None
-    try:
-        text = await asyncio.to_thread(_parse_with_pandas)
-    except (EmptyDataError, ParserError) as exc:
-        logger.warning("csv_pandas_failed", filename=file.filename, error=str(exc))
+            # Convert dataframe to text format
+            if df.empty:
+                return ""
 
-    # ------------------------------------------------------------------
-    # Fallback – naïve UTF-8 decode with error replacement
-    # ------------------------------------------------------------------
-    if text is None or not text.strip():
-        text = csv_bytes.decode("utf-8", errors="replace")
+            # Get column headers as a string
+            header_row = " ".join(df.columns.to_list())
 
-    logger.debug("csv_text_extracted", filename=file.filename, characters=len(text))
-    return text
+            # Get data rows as strings
+            data_rows = []
+            for _, row in df.iterrows():
+                data_rows.append(" ".join(str(v) for v in row.to_list()))
+
+            # Combine header and rows
+            return header_row + "\n" + "\n".join(data_rows)
+
+        except (EmptyDataError, ParserError):
+            # Fallback to raw text for malformed CSV
+            try:
+                return csv_content.decode("utf-8", errors="replace")
+            except Exception:
+                return ""
+        except Exception:
+            # Handle other errors silently
+            return ""
+
+    # Run CPU-bound extraction in threadpool
+    return await asyncio.to_thread(_worker, content)

@@ -1,212 +1,170 @@
 """src/classification/pipeline.py
 ###############################################################################
-Pipeline orchestrator (skeleton)
+Classification pipeline orchestrator
 ###############################################################################
-This module provides the asynchronous, *single-entry* function
-:pyfunc:`classify` which coordinates the end-to-end classification workflow
-for an uploaded document.
-
-Why a *skeleton*?
------------------
-Only the module boundaries & public contract are established at this stage –
-the actual stage implementations (*filename*, *metadata*, *text*, *ocr*) will
-be introduced in subsequent steps of the implementation plan.  Defining the
-orchestrator early lets downstream layers (API routes, tests) rely on a stable
-interface whilst we iterate on the internal logic.
-
-Key design points
-=================
-1. **Async-first** – the entire call-graph is designed for ``async`` even when
-   individual stage helpers are synchronous.  This ensures compatibility with
-   FastAPI's event loop and makes it trivial to off-load CPU-bound work in the
-   future.
-2. **Extensibility** – the orchestrator maintains an *ordered registry* of
-   stage callables that can be mutated from outside the module.  Each callable
-   must comply with the type alias :pydata:`StageCallable`.
-3. **Typed result** – the return value is a *Pydantic* model
-   (:class:`ClassificationResult`) so the API layer can perform painless JSON
-   serialisation and contract validation.
-4. **Observability** – every invocation logs a structured summary (label,
-   confidence, latency) via *structlog*.
-5. **≤ 40 lines per function** – helper functions are factored out to respect
-   the project engineering rules.
-
-The current implementation uses a **fallback strategy** that returns the label
-``"unknown"`` with *zero* confidence because no stages exist yet.  This keeps
-unit tests & API routes functional and avoids *NotImplementedError* flow.
-Future steps will populate :pyattr:`STAGE_REGISTRY` with real stage objects.
-
-Limitations / TODO
-------------------
-• The *stage execution* loop is intentionally naïve – no early-exit or
-  weighting logic is applied.  These will be added once stage modules are
-  available.
+This module contains the main classification pipeline implementation,
+orchestrating multiple classification stages and aggregating their results.
 """
 
 from __future__ import annotations
 
-# stdlib
 import time
-from typing import Awaitable, Callable, Dict, List, MutableMapping
+from dataclasses import dataclass, field
+from typing import Callable, Dict, List, Optional
 
-# third-party
 import structlog
-from pydantic import BaseModel, Field
 from starlette.datastructures import UploadFile
 
-from src.classification.confidence import aggregate_confidences
+from src.core.config import get_settings
 
-# local
-from src.core.config import Settings, get_settings
-
-__all__: list[str] = [
-    "ClassificationResult",
-    "classify",
-    "STAGE_REGISTRY",
-]
-
+# Initialize logger
 logger = structlog.get_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Type aliases & data models
-# ---------------------------------------------------------------------------
-
-StageCallable = Callable[[UploadFile], Awaitable["StageOutcome"]]
+# Registry for classification stages
+STAGE_REGISTRY: List[Callable] = []
 
 
-class StageOutcome(BaseModel):  # noqa: D101 – simple data container
-    label: str | None = None
-    confidence: float | None = None
+@dataclass
+class StageOutcome:
+    """
+    Result from a single classification stage.
 
-    class Config:  # noqa: D106
-        arbitrary_types_allowed = True
-        frozen = True
+    Attributes:
+        label: The document type label identified by the stage, or None
+        confidence: Confidence score between 0.0-1.0, or None if no match
+    """
 
-
-class ClassificationResult(BaseModel):
-    """Structured result emitted by the classification pipeline."""
-
-    filename: str = Field(..., description="Original filename supplied by user.")
-    mime_type: str | None = Field(
-        None, description="Client-reported MIME type from multipart upload."
-    )
-    size_bytes: int = Field(..., description="Total file size after upload.")
-    label: str = Field(..., description="Final document type chosen by pipeline.")
-    confidence: float = Field(..., description="Aggregated confidence score (0-1).")
-    stage_confidences: Dict[str, float | None] = Field(
-        default_factory=dict,
-        description="Per-stage confidence mapping for transparency.",
-    )
-    pipeline_version: str = Field(
-        ..., description="Semantic identifier for the pipeline version."
-    )
-    processing_ms: float = Field(..., description="End-to-end latency in milliseconds.")
-
-    class Config:  # noqa: D106
-        allow_population_by_field_name = True
-        frozen = True
+    label: Optional[str] = None
+    confidence: Optional[float] = None
 
 
-# ---------------------------------------------------------------------------
-# Stage registry – *ordered* list of callables executed sequentially
-# ---------------------------------------------------------------------------
-STAGE_REGISTRY: List[StageCallable] = []  # populated in later implementation steps
+@dataclass
+class ClassificationResult:
+    """
+    Complete document classification result.
 
-# ---------------------------------------------------------------------------
-# Dynamic stage import – executed lazily to avoid circular dependencies
-# ---------------------------------------------------------------------------
-try:
-    from .stages import (
-        stage_filename,  # noqa: WPS433 – runtime import
-        stage_metadata,
-        stage_ocr,
-        stage_text,
-    )
+    Attributes:
+        filename: Original filename of the document
+        mime_type: MIME type of the document
+        size_bytes: File size in bytes
+        label: Final document type classification
+        confidence: Final confidence score (0.0-1.0)
+        stage_confidences: Confidence scores from each stage
+        pipeline_version: Version of the classification pipeline
+        processing_ms: Time taken to classify in milliseconds
+    """
 
-    STAGE_REGISTRY.extend(
-        [
-            stage_filename,  # quick & cheap heuristic
-            stage_metadata,  # slightly heavier PDF metadata extraction
-            stage_text,  # statistical/heuristic content analysis
-            stage_ocr,  # fallback OCR for raster images
-        ]
-    )
-except ModuleNotFoundError:  # pragma: no cover – partially built envs
-    # Allows the module to be imported during early CI steps before all stages
-    # exist, in line with the incremental implementation plan.
-    pass
+    filename: str
+    mime_type: str
+    size_bytes: int
+    label: str
+    confidence: float
+    stage_confidences: Dict[str, Optional[float]] = field(default_factory=dict)
+    pipeline_version: str = "v0.1.0"
+    processing_ms: float = 0.0
 
 
-# ---------------------------------------------------------------------------
-# Helper utilities – kept private to avoid polluting public namespace
-# ---------------------------------------------------------------------------
+def _get_file_size(file: UploadFile) -> int:
+    """
+    Get the size of an uploaded file in bytes.
 
+    Args:
+        file: The uploaded file
 
-def _get_file_size(file: UploadFile) -> int:  # noqa: D401
-    """Return the total size in **bytes** of *file* without altering position."""
+    Returns:
+        Size in bytes
+    """
+    # Get current position
+    current_pos = file.file.tell()
 
-    file.file.seek(0, 2)  # type: ignore[arg-type]
-    size: int = file.file.tell()  # type: ignore[arg-type]
-    file.file.seek(0)
+    # Seek to end
+    file.file.seek(0, 2)
+
+    # Get size
+    size = file.file.tell()
+
+    # Reset position
+    file.file.seek(current_pos)
+
     return size
 
 
-async def _execute_stages(file: UploadFile) -> MutableMapping[str, StageOutcome]:
-    """Run each registered stage & collect outcomes keyed by stage name."""
+async def _execute_stages(file: UploadFile) -> Dict[str, StageOutcome]:
+    """
+    Execute all registered classification stages on a file.
 
-    outcomes: Dict[str, StageOutcome] = {}
+    Args:
+        file: The uploaded file to classify
+
+    Returns:
+        Dictionary mapping stage names to their outcomes
+    """
+    results = {}
+
     for stage in STAGE_REGISTRY:
-        stage_name: str = stage.__name__
-        outcome: StageOutcome = await stage(file)
-        outcomes[stage_name] = outcome
-    return outcomes
+        stage_name = stage.__name__
+        outcome = await stage(file)
+        results[stage_name] = outcome
+
+    return results
 
 
-# ---------------------------------------------------------------------------
-# Public orchestrator
-# ---------------------------------------------------------------------------
+async def classify(file: UploadFile) -> ClassificationResult:
+    """
+    Classify a document by running it through all registered classification stages.
 
+    Args:
+        file: The uploaded file to classify
 
-async def classify(file: UploadFile) -> ClassificationResult:  # noqa: D401
-    """Classify **file** and return a structured :class:`ClassificationResult`."""
+    Returns:
+        ClassificationResult with document type and confidence score
+    """
+    start_time = time.perf_counter()
+    settings = get_settings()
 
-    start: float = time.perf_counter()
-    current_settings: Settings = get_settings()
+    # Get file metadata
+    size_bytes = _get_file_size(file)
+    filename = file.filename or "<unknown>"
+    mime_type = file.content_type or "application/octet-stream"
 
-    # ------------------------------------------------------------------
-    # 1. Execute registered stages (currently none) & aggregate scores
-    # ------------------------------------------------------------------
-    stage_outcomes: Dict[str, StageOutcome] = await _execute_stages(file)
+    # Execute all registered stages
+    stage_outcomes = await _execute_stages(file)
 
-    # ------------------------------------------------------------------
-    # 2. Aggregate confidences & apply thresholding/early-exit (Step 4.4)
-    # ------------------------------------------------------------------
-    final_label, final_confidence = aggregate_confidences(
-        stage_outcomes, settings=current_settings
-    )
+    # Extract stage confidences for result
+    stage_confidences = {
+        stage_name: outcome.confidence for stage_name, outcome in stage_outcomes.items()
+    }
 
-    duration_ms: float = (time.perf_counter() - start) * 1000
+    # Import here to break circular import
+    from src.classification.confidence import aggregate_confidences
 
-    # ------------------------------------------------------------------
-    # 3. Build immutable result object
-    # ------------------------------------------------------------------
+    # Aggregate confidences to determine final label and confidence
+    label, confidence = aggregate_confidences(stage_outcomes, settings=settings)
+
+    # Calculate processing time
+    end_time = time.perf_counter()
+    processing_ms = (end_time - start_time) * 1000
+
+    # Create and return result
     result = ClassificationResult(
-        filename=file.filename or "<unknown>",
-        mime_type=file.content_type,
-        size_bytes=_get_file_size(file),
-        label=final_label,
-        confidence=round(final_confidence, 3),
-        stage_confidences={k: v.confidence for k, v in stage_outcomes.items()},
-        pipeline_version=current_settings.pipeline_version,
-        processing_ms=round(duration_ms, 2),
+        filename=filename,
+        mime_type=mime_type,
+        size_bytes=size_bytes,
+        label=label,
+        confidence=confidence,
+        stage_confidences=stage_confidences,
+        pipeline_version=settings.pipeline_version,
+        processing_ms=processing_ms,
     )
 
+    # Log classification result
     logger.info(
         "classification_complete",
-        filename=result.filename,
-        label=result.label,
-        confidence=result.confidence,
-        processing_ms=result.processing_ms,
-        pipeline_version=result.pipeline_version,
+        filename=filename,
+        label=label,
+        confidence=confidence,
+        processing_ms=processing_ms,
+        pipeline_version=settings.pipeline_version,
     )
+
     return result

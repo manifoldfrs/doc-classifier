@@ -1,10 +1,10 @@
 """src/classification/stages/metadata.py
 ###############################################################################
-Metadata-based heuristic classification stage (Step 4.2)
+Stage 2: Metadata-based document classification
 ###############################################################################
-This module implements the *metadata* stage of the document-classification
-pipeline.  It inspects embedded metadata (currently PDF **DocumentInfo**)
-searching for indicative keywords that map to domain-specific labels.
+This module implements the metadata stage in the classification pipeline.
+It extracts and analyzes document metadata (especially from PDFs) for
+classification.
 
 Why only PDFs?
 ==============
@@ -23,20 +23,11 @@ from __future__ import annotations
 import asyncio
 import re
 from io import BytesIO
-from typing import Dict, Pattern
+from typing import Dict, Pattern, Tuple
 
 # third-party
 import structlog
-from pdfminer.pdfdocument import (  # type: ignore[import-not-found]
-    PDFDocument,
-    PDFEncryptionError,
-    PDFTextExtractionNotAllowed,
-)
-from pdfminer.pdfparser import (  # type: ignore[import-not-found]
-    PDFParser,
-    PDFSyntaxError,
-)
-from pdfminer.psparser import PSEOF, PSSyntaxError  # type: ignore[import-not-found]
+from pdfminer.high_level import extract_text
 from starlette.datastructures import UploadFile
 
 # local
@@ -62,89 +53,71 @@ _LABEL_PATTERNS: Dict[str, Pattern[str]] = {
 # Confidence is lower than filename stage because metadata can be noisy
 _CONFIDENCE_SCORE: float = 0.86
 
+# Document patterns in metadata
+# Maps regex patterns to (label, confidence) tuples
+METADATA_PATTERNS: Dict[Pattern, Tuple[str, float]] = {
+    re.compile(r"invoice|receipt|bill", re.IGNORECASE): ("invoice", 0.86),
+    re.compile(r"bank.*statement|statement", re.IGNORECASE): ("bank_statement", 0.83),
+    re.compile(r"financial|report", re.IGNORECASE): ("financial_report", 0.82),
+    re.compile(r"driver|licen[cs]e", re.IGNORECASE): ("drivers_licence", 0.88),
+    re.compile(r"id.*card|identity|passport", re.IGNORECASE): ("id_doc", 0.84),
+    re.compile(r"contract|agreement|terms", re.IGNORECASE): ("contract", 0.85),
+    re.compile(r"email|e-mail", re.IGNORECASE): ("email", 0.87),
+    re.compile(r"form|application", re.IGNORECASE): ("form", 0.81),
+}
 
-async def _extract_pdf_metadata(pdf_bytes: bytes) -> str:
-    """Return a **single string** containing all textual metadata values.
 
-    The helper executes synchronously in a background thread to avoid blocking
-    the event-loop.  When pdfminer raises an exception we return an empty
-    string which causes the caller to yield an empty :class:`StageOutcome`.
+async def _extract_pdf_metadata(content: bytes) -> str:
+    """
+    Extract PDF metadata from document content.
+
+    Args:
+        content: Raw PDF file content
+
+    Returns:
+        Extracted metadata as string
     """
 
     def _worker() -> str:
         try:
-            parser = PDFParser(BytesIO(pdf_bytes))
-            document = PDFDocument(parser)
-            if not document.info:
-                return ""
-            # `info` is a list of dicts – combine into one flat string
-            parts = []
-            for meta in document.info:
-                for val in meta.values():
-                    try:
-                        parts.append(str(val))
-                    except Exception:  # noqa: BLE001 narrow conversions vary
-                        # This inner try-except is for individual metadata value
-                        # conversions which can be problematic.
-                        pass
-            return " \n".join(parts)
-        except (
-            PDFSyntaxError,
-            PSEOF,
-            PSSyntaxError,
-            TypeError,  # Can be raised by pdfminer on malformed objects
-            ValueError,  # Can be raised on unexpected values
-        ) as exc:
-            logger.warning(
-                "metadata_pdf_parsing_failed",
-                error=str(exc),
-                exc_type=type(exc).__name__,
-            )
-            return ""
-        except (PDFEncryptionError, PDFTextExtractionNotAllowed) as exc:
-            logger.warning(
-                "metadata_pdf_access_denied",
-                error=str(exc),
-                exc_type=type(exc).__name__,
-            )
-            return ""
-        except Exception as exc:  # noqa: BLE001 – Fallback for other pdfminer issues
-            logger.error(
-                "metadata_pdf_extraction_unexpected_error",
-                error=str(exc),
-                exc_type=type(exc).__name__,
-            )
+            # Use pdfminer to extract document info
+            pdf_buffer = BytesIO(content)
+            # Extract first page only for metadata
+            return extract_text(pdf_buffer, page_numbers=[0], maxpages=1) or ""
+        except Exception:
             return ""
 
     return await asyncio.to_thread(_worker)
 
 
-async def stage_metadata(file: UploadFile) -> StageOutcome:  # noqa: D401
-    """Infer document label from **embedded metadata**.
-
-    Only PDF uploads are processed.  Other formats return an empty outcome so
-    downstream stages remain responsible for classification.
+async def stage_metadata(file: UploadFile) -> StageOutcome:
     """
+    Analyze document metadata to classify document type.
 
-    if not (file.content_type or "").lower().startswith("application/pdf"):
-        logger.debug("metadata_stage_skipped", reason="non_pdf", mime=file.content_type)
-        return StageOutcome()
+    Currently only works with PDFs. Other file types are skipped.
 
-    # Reset pointer & read bytes (≤10 MB → acceptable in memory)
+    Args:
+        file: The uploaded file to analyze
+
+    Returns:
+        StageOutcome with label and confidence if recognized pattern found,
+        otherwise label=None, confidence=None
+    """
+    # Skip non-PDF files
+    if not file.content_type or "pdf" not in file.content_type:
+        return StageOutcome(label=None, confidence=None)
+
+    # Extract metadata from PDF
     await file.seek(0)
-    pdf_bytes: bytes = await file.read()
+    content = await file.read()
+    metadata = await _extract_pdf_metadata(content)
 
-    meta_text: str = await _extract_pdf_metadata(pdf_bytes)
-    if not meta_text:
-        return StageOutcome()
+    if not metadata:
+        return StageOutcome(label=None, confidence=None)
 
-    text_lower = meta_text.lower()
-    for label, pattern in _LABEL_PATTERNS.items():
-        if pattern.search(text_lower):
-            logger.debug(
-                "metadata_stage_match", label=label, confidence=_CONFIDENCE_SCORE
-            )
-            return StageOutcome(label=label, confidence=_CONFIDENCE_SCORE)
+    # Match metadata against patterns
+    for pattern, (label, confidence) in METADATA_PATTERNS.items():
+        if pattern.search(metadata):
+            return StageOutcome(label=label, confidence=confidence)
 
-    logger.debug("filename_stage_no_match", filename=file.filename)
-    return StageOutcome()
+    return StageOutcome(label=None, confidence=None)

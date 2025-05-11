@@ -1,20 +1,10 @@
 """src/classification/confidence.py
 ###############################################################################
-Confidence aggregation utilities (Step 4.4)
+Decision kernel for combining stage confidence scores
 ###############################################################################
-This module consolidates **per-stage** confidence scores produced by the
-multi-stage document-classification pipeline into a single _final_ score &
-label.  It implements the rules laid out in the technical specification:
-
-1. **Early-exit optimisation** – if any stage reports a confidence greater than
-   or equal to the configurable ``EARLY_EXIT_CONFIDENCE`` (default = 0.9) the
-   pipeline short-circuits and returns that stage ⇢ label  ← score.
-2. **Weighted aggregation** – otherwise, the module combines stage scores via a
-   weighted average.  Weights are encoded in :pydata:`STAGE_WEIGHTS` and can be
-   tweaked centrally without touching the pipeline orchestrator.
-3. **Thresholding** – when the aggregated score falls below
-   ``CONFIDENCE_THRESHOLD`` (default = 0.65) the label is downgraded to
-   ``"unsure"`` so clients can apply fallback handling.
+This module implements the "aggregator" - the decision-making kernel of the
+classification pipeline that combines the individual stage confidence scores
+into a final classification with confidence.
 
 Design constraints
 ==================
@@ -38,22 +28,11 @@ Edge cases & validation
 
 from __future__ import annotations
 
-# stdlib
-from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Mapping, Tuple
+from typing import Any, Dict, Tuple
 
-# local imports
-from src.core.config import Settings, get_settings
+from src.core.config import Settings
 
-__all__: list[str] = [
-    "aggregate_confidences",
-    "STAGE_WEIGHTS",
-]
-
-# ---------------------------------------------------------------------------
-# Weight configuration – stage function __name__  → weight (float 0-1)
-# The mapping lives _once_ here so changes propagate automatically.
-# ---------------------------------------------------------------------------
+# Stage weights - determine how much each stage contributes to final decision
 STAGE_WEIGHTS: Dict[str, float] = {
     "stage_filename": 0.15,
     "stage_metadata": 0.25,
@@ -61,67 +40,73 @@ STAGE_WEIGHTS: Dict[str, float] = {
     "stage_ocr": 0.25,
 }
 
-if TYPE_CHECKING:  # pragma: no cover – import solely for static analysis
-    from src.classification.pipeline import StageOutcome
-
 
 def aggregate_confidences(
-    stage_outcomes: Mapping[str, "StageOutcome"],
-    *,
-    settings: Settings | None = None,
-) -> Tuple[str, float]:  # noqa: D401 – helper function signature
-    """Return *(label, confidence)* aggregated across stages.
-
-    Parameters
-    ----------
-    stage_outcomes:
-        Mapping from **stage function name** → :class:`StageOutcome` produced by
-        the classification pipeline.
-    settings:
-        Optional :class:`~src.core.config.Settings` instance.  The cached global
-        singleton is used when omitted.  Providing an explicit instance is
-        useful for unit-tests that need deterministic behaviour regardless of
-        ``os.environ``.
+    outcomes: Dict[str, Any], *, settings: Settings
+) -> Tuple[str, float]:
     """
+    Combine stage outcomes using weighted aggregation with optional early exit.
 
-    settings = settings or get_settings()
+    This is the decision-making "kernel" of the pipeline, applying three rules:
 
-    # ------------------------------------------------------------------
-    # 1. Early-exit – highest confidence ≥ early_exit_confidence
-    # ------------------------------------------------------------------
-    for outcome in stage_outcomes.values():
-        if (
-            outcome.label
-            and outcome.confidence is not None
-            and outcome.confidence >= settings.early_exit_confidence
-        ):
-            return outcome.label, float(outcome.confidence)
+    1. EARLY EXIT: If any stage has confidence >= early_exit_confidence,
+       return its label immediately (pick highest if multiple qualify).
+    2. WEIGHTED SUM: Otherwise combine per-stage scores using STAGE_WEIGHTS.
+    3. THRESHOLD: If final score < confidence_threshold, return "unsure".
 
-    # ------------------------------------------------------------------
-    # 2. Weighted aggregation – accumulate per-label weighted scores
-    # ------------------------------------------------------------------
-    scores: Dict[str, float] = defaultdict(float)
-    weights_seen: Dict[str, float] = defaultdict(float)
+    Args:
+        outcomes: Dictionary mapping stage names to StageOutcome objects
+        settings: Application settings with threshold values
 
-    for stage_name, outcome in stage_outcomes.items():
-        if outcome.label and outcome.confidence is not None:
-            weight: float = STAGE_WEIGHTS.get(stage_name, 1.0)
-            scores[outcome.label] += outcome.confidence * weight
-            weights_seen[outcome.label] += weight
-
-    if not scores:
+    Returns:
+        Tuple of (label, confidence)
+    """
+    # Special case: no outcomes or no valid outcomes
+    if not outcomes:
         return "unknown", 0.0
 
-    # Normalise to obtain weighted averages and pick label with highest score
-    aggregated_label: str = max(scores, key=scores.get)
-    aggregated_confidence: float = (
-        scores[aggregated_label] / weights_seen[aggregated_label]
-    )
+    # Check for early exit - any stage with very high confidence
+    early_exit_candidates = []
+    for _, outcome in outcomes.items():
+        if outcome.label and outcome.confidence is not None:
+            if outcome.confidence >= settings.early_exit_confidence:
+                early_exit_candidates.append((outcome.label, outcome.confidence))
 
-    # ------------------------------------------------------------------
-    # 3. Thresholding – downgrade to "unsure" when below configured minimum
-    # ------------------------------------------------------------------
-    if aggregated_confidence < settings.confidence_threshold:
-        return "unsure", aggregated_confidence
+    if early_exit_candidates:
+        # Take the one with highest confidence
+        early_exit_candidates.sort(key=lambda x: x[1], reverse=True)
+        return early_exit_candidates[0]
 
-    return aggregated_label, aggregated_confidence
+    # Calculate weighted scores by label
+    label_scores: Dict[str, float] = {}
+    label_weights: Dict[str, float] = {}
+
+    for stage_name, outcome in outcomes.items():
+        if not outcome.label or outcome.confidence is None:
+            continue
+
+        weight = STAGE_WEIGHTS.get(stage_name, 1.0)
+        weighted_score = outcome.confidence * weight
+
+        if outcome.label not in label_scores:
+            label_scores[outcome.label] = 0.0
+            label_weights[outcome.label] = 0.0
+
+        label_scores[outcome.label] += weighted_score
+        label_weights[outcome.label] += weight
+
+    # No valid scores found
+    if not label_scores:
+        return "unknown", 0.0
+
+    # Find label with highest total weighted score
+    best_label = max(label_scores.items(), key=lambda x: x[1])[0]
+
+    # Calculate average confidence for the winning label
+    confidence = label_scores[best_label] / label_weights[best_label]
+
+    # Return "unsure" if confidence is below threshold
+    if confidence < settings.confidence_threshold:
+        return "unsure", confidence
+
+    return best_label, confidence

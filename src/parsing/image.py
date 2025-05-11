@@ -1,11 +1,8 @@
 """src/parsing/image.py
 ###############################################################################
-Image OCR text-extraction adapter
+Image OCR text extraction using pytesseract
 ###############################################################################
-This adapter extracts textual content from **raster images** (JPEG/PNG) using
-*Tesseract OCR* via the `pytesseract` binding.  It converts the user-supplied
-`UploadFile` into a Pillow `Image` instance and delegates recognition to
-`pytesseract.image_to_string`.
+This module provides functions for extracting text from image files using OCR.
 
 Design considerations
 =====================
@@ -48,32 +45,37 @@ __all__: list[str] = [
 logger = structlog.get_logger(__name__)
 
 
-async def extract_text_from_image(file: UploadFile) -> str:  # noqa: D401
-    """Return textual content obtained via **OCR** on an image *file*.
-
-    Parameters
-    ----------
-    file:
-        The uploaded raster image wrapped by FastAPI.
-
-    Returns
-    -------
-    str
-        OCR-extracted string (may be empty if no text detected).
+async def extract_text_from_image(file: UploadFile) -> str:
     """
+    Extract text from an image file using OCR with Tesseract.
 
-    # Reset pointer in case validators have already read from the stream
+    Args:
+        file: The uploaded image file
+
+    Returns:
+        Extracted text content as a string
+    """
+    # Read the file content
     await file.seek(0)
-    image_bytes: bytes = await file.read()
+    content = await file.read()
 
-    def _ocr_worker() -> str:
-        # Pillow handles format detection internally
-        with Image.open(BytesIO(image_bytes)) as img:
-            # Ensure consistent colour mode for tesseract
-            img_rgb = img.convert("RGB")
-            return pytesseract.image_to_string(img_rgb) or ""
+    # Define worker function for async execution
+    def _worker(image_content: bytes) -> str:
+        try:
+            # Create BytesIO object for PIL to read from
+            image_buffer = BytesIO(image_content)
 
-    text: str = await asyncio.to_thread(_ocr_worker)
+            # Open and process the image
+            with Image.open(image_buffer) as img:
+                # Convert to RGB to ensure compatibility with OCR
+                img = img.convert("RGB")
 
-    logger.debug("image_text_extracted", filename=file.filename, characters=len(text))
-    return text
+                # Perform OCR
+                text = pytesseract.image_to_string(img)
+                return text or ""
+        except Exception as e:
+            # Handle image processing errors
+            return f"Error extracting image text: {str(e)}"
+
+    # Run CPU-bound OCR in threadpool
+    return await asyncio.to_thread(_worker, content)
