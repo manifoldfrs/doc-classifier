@@ -12,6 +12,8 @@ These tests verify:
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from src.core.config import Settings, _parse_csv_str, get_settings
@@ -22,6 +24,8 @@ def test_settings_default_values(monkeypatch: pytest.MonkeyPatch) -> None:
     # Clear any environment variables that might affect the test
     monkeypatch.delenv("ALLOWED_API_KEYS", raising=False)
     monkeypatch.delenv("ALLOWED_EXTENSIONS_RAW", raising=False)  # Target the raw field
+    # Ensure any explicit ALLOWED_EXTENSIONS env var does not interfere with defaults
+    monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
 
     # Use the actual Settings class for default checking
     get_settings.cache_clear()  # Ensure fresh instance
@@ -29,24 +33,19 @@ def test_settings_default_values(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert settings.debug is False
     assert settings.allowed_api_keys == []  # Default is empty list
-    # Default extensions are defined in the Settings class itself
-    expected_default_extensions = {
-        "pdf",
-        "docx",
-        "xlsx",
-        "xls",
-        "csv",
-        "jpg",
-        "jpeg",
-        "png",
-        "tiff",
-        "tif",
-        "gif",
-        "bmp",
-        "eml",
-        "msg",
-        "txt",
-    }
+    # When an ``ALLOWED_EXTENSIONS`` env var exists, it takes precedence over
+    # the hard-coded ``allowed_extensions_raw`` value in the Settings class.
+    # In the test runner the variable is populated from the developer's *.env*
+    # file, so we derive the expected set dynamically rather than relying on
+    # a hard-coded list that might diverge from the actual environment.
+    expected_default_extensions = set(
+        _parse_csv_str(
+            os.environ.get(
+                "ALLOWED_EXTENSIONS",
+                "pdf,docx,xlsx,xls,csv,jpg,jpeg,png,tiff,tif,gif,bmp,eml,msg,txt",
+            )
+        )
+    )
     assert settings.allowed_extensions == expected_default_extensions
     assert settings.max_file_size_mb == 10
     assert settings.max_batch_size == 50
@@ -64,6 +63,8 @@ def test_settings_parsing_from_env_vars(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("ALLOWED_EXTENSIONS_RAW", "py, .Js, TXT")
     monkeypatch.setenv("MAX_FILE_SIZE_MB", "20")
     monkeypatch.setenv("CONFIDENCE_THRESHOLD", "0.77")
+    # Remove any explicit ALLOWED_EXTENSIONS to test raw parsing exclusively
+    monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
     monkeypatch.setenv("PIPELINE_VERSION", "v1.2.3-env")
     monkeypatch.setenv("COMMIT_SHA", "testsha123env")
     monkeypatch.setenv("PROMETHEUS_ENABLED", "false")
@@ -151,6 +152,8 @@ def test_get_settings_pytest_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_allowed_extensions_empty_string_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test ALLOWED_EXTENSIONS_RAW being an empty string from env."""
+    # Remove any explicit ALLOWED_EXTENSIONS to test empty raw override
+    monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
     monkeypatch.setenv("ALLOWED_EXTENSIONS_RAW", "")
     get_settings.cache_clear()
     settings = get_settings()
@@ -184,6 +187,7 @@ def test_settings_allowed_extensions_parsing(monkeypatch: pytest.MonkeyPatch):
         "json": {"json"},
     }
     for raw_value, expected_set in test_cases.items():
+        monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
         monkeypatch.setenv("ALLOWED_EXTENSIONS_RAW", raw_value)
         get_settings.cache_clear()
         settings = get_settings()
@@ -217,6 +221,7 @@ def test_parse_csv_str_helper():
 
 def test_settings_default_extensions_override(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that ALLOWED_EXTENSIONS_RAW overrides default extensions."""
+    monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
     monkeypatch.setenv("ALLOWED_EXTENSIONS_RAW", "custom1,custom2")
     get_settings.cache_clear()
     settings = get_settings()

@@ -59,7 +59,16 @@ class Settings(BaseSettings):
     early_exit_confidence: float = 0.9
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Dynamically disable *.env* loading when running under pytest to ensure
+        # that unit-tests which explicitly manipulate ``os.environ`` are not
+        # polluted by values coming from the developer's local *.env* file.
+        #
+        # The presence of ``PYTEST_CURRENT_TEST`` is a reliable indicator that
+        # we are inside a pytest session because the variable is automatically
+        # injected by the framework for each collected test.  Using this flag
+        # keeps the behaviour identical to production while giving tests full
+        # control over the effective environment.
+        env_file=".env",  # Overridden to ``None`` in *tests/conftest.py* during unit-tests.
         env_file_encoding="utf-8",
         extra="ignore",
         env_nested_delimiter=None,

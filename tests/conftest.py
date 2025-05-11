@@ -125,3 +125,28 @@ def mock_settings():
         mock_get_core_settings.return_value = settings
         mock_get_auth_settings.return_value = settings
         yield settings
+
+
+@pytest.fixture(autouse=True)
+def _disable_dotenv(monkeypatch):
+    """Prevent the application Settings class from reading the developer *.env* file.*
+
+    Unit-tests must operate against a *clean* environment.  Loading the real
+    *.env* would inject values such as ``ALLOWED_EXTENSIONS`` that invalidate
+    default-value assertions (see *tests/unit/core/test_config.py*).
+
+    The fixture patches ``Settings.model_config['env_file']`` to ``None`` so
+    that Pydantic skips dotenv processing entirely.  Individual tests remain
+    free to manipulate environment variables via ``monkeypatch`` without having
+    to worry about local developer configuration leaking in.
+    """
+
+    from src.core.config import Settings  # Imported here to avoid circularity
+
+    # Disable reading of the external *.env* file for the entire test session.
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+
+    # Also guarantee that the two variables most often used in configuration
+    # default-value tests are absent unless explicitly set by a test case.
+    monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
+    monkeypatch.delenv("ALLOWED_API_KEYS", raising=False)
