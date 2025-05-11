@@ -1,51 +1,22 @@
 """src/api/routes/__init__.py
 ###############################################################################
-FastAPI **router registry**.
+FastAPI **router package marker**.
 ###############################################################################
-This sub-package collates all APIRouter instances and exposes a convenience
-``register_routes(app)`` helper so the central :pymod:`src.api.app` factory can
-include them without hard-coding individual imports.  Each new route module
-(e.g. *admin.py*, *jobs.py*) MUST:
+This sub-package collates all APIRouter instances. The actual registration of
+these routers into the FastAPI application now happens directly in
+`src.api.app.py`.
 
+Each route module (e.g. *admin.py*, *jobs.py*) MUST:
 1. Define a module-level variable named ``router`` of type ``fastapi.APIRouter``.
-2. Add its router to :pydata:`ROUTERS` below by *import side-effect* (see
-   ``from . import files as _files``).
 
-This pattern keeps the *app* bootstrap logic declarative: future additions only
-require editing **this** file, not the app factory.
+This __init__.py file is kept minimal, primarily acting as a Python package
+identifier and a point for potential future shared route utilities if needed,
+though direct imports into `src.api.app.py` are now preferred for routers.
 """
 
 from __future__ import annotations
 
-# third-party
-from fastapi import APIRouter, FastAPI
+# This file is intentionally kept minimal.
+# Routers are imported and registered directly in src/api/app.py.
 
-from . import admin as _admin  # noqa: F401 – imported for side-effects only
-from . import files as _files  # noqa: F401  – imported for side-effects only
-from . import jobs as _jobs  # noqa: F401 – newly added for async batch jobs
-
-# ---------------------------------------------------------------------------
-# Import routers – **strict order** is not important for independent routes.
-# ---------------------------------------------------------------------------
-
-ROUTERS: list[APIRouter] = [
-    _files.router,
-    _admin.router,
-    _jobs.router,
-]
-
-__all__: list[str] = [
-    "register_routes",
-    "ROUTERS",
-]
-
-
-def register_routes(app: FastAPI) -> None:  # noqa: D401 – imperative helper
-    """Attach every router in :pydata:`ROUTERS` onto **app**.
-
-    The function is idempotent – attempting to include the *same* router twice
-    is silently ignored by FastAPI.
-    """
-
-    for router in ROUTERS:
-        app.include_router(router)
+__all__: list[str] = []
