@@ -75,8 +75,10 @@ class ClassificationResultSchema(ClassificationResult):
         frozen = True
 
 
-""" Представление полей: We intentionally inherit from the *internal* model to
-avoid duplicating 10+ attribute definitions and to guarantee that any future
-changes to the internal representation (e.g. adding `sha256`) will cause a
-**mypy** type error here unless we explicitly update the public contract.  This
-keeps the API and the core pipeline in lock-step at compile-time. """
+""" Notes on field inheritance and representation:
+We intentionally inherit from the *internal* model to avoid duplicating 10+
+attribute definitions and to guarantee that any future changes to the internal
+representation (e.g. adding `sha256`) will cause a **mypy** type error here
+unless we explicitly update the public contract. This keeps the API and the
+core pipeline in lock-step at compile-time.
+"""
