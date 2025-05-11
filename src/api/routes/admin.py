@@ -31,7 +31,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 # local
-from src.core.config import get_settings
+from src.core.config import Settings, get_settings
 from src.utils.auth import verify_api_key
 
 __all__: list[str] = [
@@ -49,11 +49,11 @@ router: APIRouter = APIRouter(
     dependencies=[Depends(verify_api_key)],
 )
 
-settings = get_settings()
-
 
 @router.get("/health", summary="Liveness probe")
-async def health() -> JSONResponse:  # noqa: D401 – FastAPI path operation
+async def health(
+    settings: Settings = Depends(get_settings),  # noqa: B008
+) -> JSONResponse:  # noqa: D401 – FastAPI path operation
     """Return **200 OK** if the service process is responsive.
 
     The response payload purposefully remains minimal to keep the endpoint fast
@@ -72,6 +72,7 @@ async def health() -> JSONResponse:  # noqa: D401 – FastAPI path operation
 @router.get("/version", summary="Application version information")
 async def version(
     request: Request,
+    settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> JSONResponse:  # noqa: D401 – FastAPI path operation
     """Return the semantic *application* version plus the git commit SHA.
 

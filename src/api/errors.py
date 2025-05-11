@@ -92,6 +92,10 @@ async def _http_exception_handler(
         message=str(exc.detail),
         request_id=request.headers.get("x-request-id"),
     )
+    # Maintain compatibility with FastAPI default error schema expected by
+    # some client tests that assert on ``response.json()['detail']``.
+    payload["detail"] = str(exc.detail)
+
     return JSONResponse(status_code=exc.status_code, content=payload)
 
 

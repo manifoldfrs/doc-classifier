@@ -46,24 +46,23 @@ def _build_upload(
 ) -> UploadFile:  # noqa: D401 – tiny factory
     """Return a Starlette *UploadFile* wrapping **payload** for isolation."""
 
+    mock_file_obj = BytesIO(payload)
+
     # Create a proper MagicMock with the file attribute
-    mock_file = MagicMock()
-    mock_file.filename = filename
+    # The UploadFile constructor in Starlette takes filename, file, content_type
+    # It's better to mock the UploadFile instance directly if we need to control its attributes deeply.
+    upload_file_mock = MagicMock(spec=UploadFile)
+    upload_file_mock.filename = filename
+    upload_file_mock.file = mock_file_obj  # This is the SpooledTemporaryFile or BytesIO
+    upload_file_mock.content_type = content_type
 
-    # Set up a proper file attribute with seek/tell methods
-    mock_file.file = BytesIO(payload)
+    # Mock async methods if needed by the calling code, though validate_file uses sync file ops
+    upload_file_mock.seek = MagicMock()  # For the UploadFile.seek if it were async
+    upload_file_mock.read = MagicMock(
+        return_value=payload
+    )  # For UploadFile.read if it were async
 
-    # Handle content_type
-    if content_type is not None:
-        mock_file.content_type = content_type
-    else:
-        mock_file.content_type = None
-
-    # Create mock for async seek/read
-    mock_file.seek = MagicMock()
-    mock_file.read = MagicMock(return_value=payload)
-
-    return mock_file  # type: ignore
+    return upload_file_mock
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +90,7 @@ def test_validate_file_success_small_txt() -> None:
 def test_unsupported_extension_raises(filename: str) -> None:
     """Files with extensions outside the whitelist raise **415**."""
 
-    settings = MockSettings(allowed_extensions_raw="pdf,txt")  # malware.exe not in here
+    settings = MockSettings(allowed_extensions_raw="pdf,txt")
     upload = _build_upload(filename, b"dummy", "application/octet-stream")
 
     with pytest.raises(HTTPException) as exc:
@@ -107,9 +106,9 @@ def test_file_too_large_raises() -> None:
     payload = b"z" * (2 * 1024 * 1024)  # 2MB > 1MB limit
     upload = _build_upload("big.pdf", payload, "application/pdf")
 
-    # Manually set up the size check behavior
-    upload.file.seek = MagicMock()
-    upload.file.tell = MagicMock(return_value=len(payload))  # Return the actual size
+    # The actual file size check uses upload.file.seek() and upload.file.tell()
+    # No need to mock these on the UploadFile mock itself, but on its .file attribute
+    # which is already a BytesIO instance from _build_upload
 
     with pytest.raises(HTTPException) as exc:
         validate_file(upload, settings=settings)
@@ -124,10 +123,6 @@ def test_empty_file_raises() -> None:
     settings = MockSettings(allowed_extensions_raw="txt")
     upload = _build_upload("empty.txt", b"", "text/plain")
 
-    # Manually set up the size check behavior
-    upload.file.seek = MagicMock()
-    upload.file.tell = MagicMock(return_value=0)  # Empty file
-
     with pytest.raises(HTTPException) as exc:
         validate_file(upload, settings=settings)
 
@@ -138,33 +133,28 @@ def test_empty_file_raises() -> None:
 def test_mime_type_mismatch_raises() -> None:
     """Mismatch between extension and MIME-type raises **415** unsupported-media."""
     settings = MockSettings(allowed_extensions_raw="pdf")
-    # .pdf expected "application/pdf" but we fake JSON content_type
     upload = _build_upload("doc.pdf", b"%PDF-1.4", "application/json")
 
-    # Mock the mimetypes.guess_type to return a predictable value
     with patch("mimetypes.guess_type", return_value=("application/pdf", None)):
         with pytest.raises(HTTPException) as exc:
             validate_file(upload, settings=settings)
 
         assert exc.value.status_code == 415
-        assert "MIME type" in exc.value.detail
+        assert (
+            "MIME type mismatch" in exc.value.detail
+        )  # Check for more specific message
 
 
 def test_filename_missing_raises_400() -> None:
     """If file.filename is None or empty, it should raise 400."""
     settings = MockSettings()
 
-    # Test with None filename
     upload_none_fn = _build_upload(None, b"some content", "text/plain")
-    # Ensure filename is truly None
-    upload_none_fn.filename = None
-
     with pytest.raises(HTTPException) as exc_none:
         validate_file(upload_none_fn, settings=settings)
     assert exc_none.value.status_code == 400
     assert exc_none.value.detail == "No filename provided."
 
-    # Test with empty string filename
     upload_empty_fn = _build_upload("", b"some content", "text/plain")
     with pytest.raises(HTTPException) as exc_empty:
         validate_file(upload_empty_fn, settings=settings)
@@ -190,25 +180,15 @@ def test_file_size_at_limit_passes() -> None:
     one_mb_payload = b"a" * (1 * 1024 * 1024)
     upload = _build_upload("limitfile.dat", one_mb_payload, "application/octet-stream")
 
-    # Manually set up the size check behavior
-    upload.file.seek = MagicMock()
-    upload.file.tell = MagicMock(return_value=len(one_mb_payload))  # Exactly 1MB
-
-    # Should not raise
     validate_file(upload, settings=settings)
 
 
 def test_mime_type_validation_when_guess_is_none() -> None:
     """Test MIME validation when mimetypes.guess_type returns None for an extension."""
-    settings = MockSettings(
-        allowed_extensions_raw="weirdext"
-    )  # Assume 'weirdext' is not in mimetypes
-
+    settings = MockSettings(allowed_extensions_raw="weirdext")
     upload = _build_upload("file.weirdext", b"content", "application/x-custom")
 
-    # Mock mimetypes.guess_type to return None
     with patch("mimetypes.guess_type", return_value=(None, None)):
-        # Should not raise MIME mismatch error
         validate_file(upload, settings=settings)
 
 
@@ -217,31 +197,29 @@ def test_mime_type_validation_when_file_content_type_is_none() -> None:
     settings = MockSettings(allowed_extensions_raw="txt")
     upload = _build_upload("file.txt", b"content", content_type=None)
 
-    # Mock mimetypes.guess_type to return text/plain
     with patch("mimetypes.guess_type", return_value=("text/plain", None)):
-        # Should not raise MIME mismatch error since file.content_type is None
         validate_file(upload, settings=settings)
 
 
-def test_seek_tell_exception_handling() -> None:
-    """Test that if file.seek or file.tell raises an exception, it's handled."""
-    settings = MockSettings()
+def test_seek_tell_oserror_handling(mock_settings: MockSettings) -> None:
+    """Test that if file.file.seek or file.file.tell raises OSError, it's handled."""
+    upload = _build_upload("test.pdf", b"some content", "application/pdf")
 
-    # Create a proper mock with the right structure
-    mock_upload_file = MagicMock(spec=UploadFile)
-    mock_upload_file.filename = "test.pdf"
-    mock_upload_file.content_type = "application/pdf"
-
-    # Create a file attribute with methods that raise exceptions
-    mock_file = MagicMock()
-    mock_file.seek = MagicMock(side_effect=OSError("Simulated I/O error"))
-    mock_file.tell = MagicMock(side_effect=OSError("Simulated I/O error"))
-
-    # Attach the mock file to the mock upload file
-    mock_upload_file.file = mock_file
+    # Mock the .file attribute's seek method to raise OSError
+    upload.file.seek = MagicMock(side_effect=OSError("Simulated I/O error on seek"))
 
     with pytest.raises(HTTPException) as exc_info:
-        validate_file(mock_upload_file, settings=settings)
+        validate_file(upload, settings=mock_settings)
 
     assert exc_info.value.status_code == 400
     assert "Unable to assess uploaded file size." in exc_info.value.detail
+
+    # Reset mock and test for error on tell
+    upload.file.seek = MagicMock()  # Reset seek to not raise error
+    upload.file.tell = MagicMock(side_effect=OSError("Simulated I/O error on tell"))
+
+    with pytest.raises(HTTPException) as exc_info_tell:
+        validate_file(upload, settings=mock_settings)
+
+    assert exc_info_tell.value.status_code == 400
+    assert "Unable to assess uploaded file size." in exc_info_tell.value.detail

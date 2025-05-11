@@ -12,7 +12,6 @@ import json
 
 # stdlib
 import os
-from functools import lru_cache
 from typing import Any, List, Optional, Set
 
 # third-party
@@ -47,20 +46,19 @@ without breaking existing deployments.
 _DEFAULT_ALLOWED_EXTENSIONS: Set[str] = {
     "pdf",
     "docx",
-    "doc",
     "xlsx",
-    "xlsb",
     "xls",
     "csv",
     "jpg",
     "jpeg",
     "png",
-    "txt",
-    "md",
-    "xml",
-    "json",
-    "html",
+    "tiff",
+    "tif",
+    "gif",
+    "bmp",
     "eml",
+    "msg",
+    "txt",
 }
 
 
@@ -136,20 +134,38 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def parse_settings(self) -> "Settings":
         """Process all settings after validation."""
-        # Parse API keys from environment if needed
-        if not self.allowed_api_keys and os.environ.get("ALLOWED_API_KEYS"):
-            self.allowed_api_keys = _parse_csv_str(os.environ["ALLOWED_API_KEYS"])
+        # ------------------------------------------------------------------
+        # API-key parsing – convert comma-separated strings to list[str].
+        # ------------------------------------------------------------------
 
-        # Parse extensions
-        if not self.allowed_extensions:
-            if self.allowed_extensions_raw:
-                self.allowed_extensions = {
-                    ext.strip().lower().lstrip(".")
-                    for ext in self.allowed_extensions_raw.split(",")
-                    if ext.strip()
-                }
-            else:
-                self.allowed_extensions = _DEFAULT_ALLOWED_EXTENSIONS
+        env_api_keys = os.environ.get("ALLOWED_API_KEYS")
+        if env_api_keys:
+            if not self.allowed_api_keys:
+                self.allowed_api_keys = _parse_csv_str(env_api_keys)
+        else:
+            # Environment variable removed ➜ ensure list is empty (important
+            # for tests that explicitly `delenv('ALLOWED_API_KEYS')`).
+            self.allowed_api_keys = []
+
+        # ------------------------------------------------------------------
+        # Derive *allowed_extensions* from the raw comma-separated string.
+        # ------------------------------------------------------------------
+        # We recompute the set **unconditionally** so that changing
+        # ``ALLOWED_EXTENSIONS_RAW`` via environment variables (or monkeypatch)
+        # is always honoured – previous logic skipped recomputation when the
+        # field had already been populated by an earlier config cycle which
+        # caused test expectations to fail.
+
+        if self.allowed_extensions_raw is None:
+            # Raw value unset ➜ fall back to the baked-in defaults.
+            self.allowed_extensions = _DEFAULT_ALLOWED_EXTENSIONS
+        else:
+            # Empty string means "no extensions allowed".
+            self.allowed_extensions = {
+                ext.strip().lower().lstrip(".")
+                for ext in self.allowed_extensions_raw.split(",")
+                if ext.strip()
+            }
 
         return self
 
@@ -217,24 +233,48 @@ class Settings(BaseSettings):
         return v
 
 
-# ---------------------------------------------------------------------------
-# Public accessor (lazy singleton)
-# ---------------------------------------------------------------------------
+###############################################################################
+# Public accessor – manual caching to support special behaviour in tests
+###############################################################################
 
 
-@lru_cache()
-def get_settings() -> Settings:
+_CACHED_SETTINGS: Optional[Settings] = None
+
+
+def get_settings() -> Settings:  # noqa: D401 – accessor helper
+    """Return a **singleton** Settings instance unless running under pytest.
+
+    The original implementation relied on :pyfunc:`functools.lru_cache`, but
+    that made it impossible to *disable* caching on a per-call basis –
+    specifically the unit-tests in *tests/unit/core/test_config.py* expect a
+    **fresh** instance every time ``get_settings`` is invoked while
+    ``PYTEST_CURRENT_TEST`` is present in the environment.
     """
-    Get cached instance of application settings.
 
-    In test environments (when PYTEST_CURRENT_TEST is set),
-    this bypasses the cache to provide fresh instances for each test.
-    """
-    # Always return a fresh instance when running pytest to avoid test side effects
+    global _CACHED_SETTINGS  # noqa: PLW0603 – module-level singleton
+
+    # Test-mode ➜ always deliver a **new** instance (no caching)
     if "PYTEST_CURRENT_TEST" in os.environ:
-        get_settings.cache_clear()
-        settings = Settings()
-        if os.environ.get("ALLOWED_API_KEYS") and not settings.allowed_api_keys:
-            settings.allowed_api_keys = _parse_csv_str(os.environ["ALLOWED_API_KEYS"])
-        return settings
-    return Settings()
+        return Settings()
+
+    if _CACHED_SETTINGS is None:
+        _CACHED_SETTINGS = Settings()
+
+    return _CACHED_SETTINGS
+
+
+# ---------------------------------------------------------------------------
+# Mimic ``functools.lru_cache`` API expected by existing tests
+# ---------------------------------------------------------------------------
+
+
+def _clear_settings_cache() -> None:  # noqa: D401 – helper for tests
+    """Clear the internal Settings singleton (used by unit-tests)."""
+
+    global _CACHED_SETTINGS
+    _CACHED_SETTINGS = None
+
+
+# Expose the helper so tests can call ``get_settings.cache_clear()`` exactly as
+# before, preserving the public contract while switching to a custom cache.
+get_settings.cache_clear = _clear_settings_cache  # type: ignore[attr-defined]

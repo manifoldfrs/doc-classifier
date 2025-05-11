@@ -63,6 +63,24 @@ class ClassificationResult:
     pipeline_version: str = "v0.1.0"
     processing_ms: float = 0.0
 
+    # ------------------------------------------------------------------
+    # Utility helpers
+    # ------------------------------------------------------------------
+
+    def dict(self) -> dict:  # noqa: D401 – provide API-compatible helper
+        """Return a serialisable ``dict`` representation.
+
+        The public API layer (``src.api.routes.*``) expects dataclass
+        instances to expose a ``.dict()`` method similar to *Pydantic*
+        models.  Implementing the helper here avoids sprinkling
+        ``dataclasses.asdict`` conversions throughout the code-base while
+        keeping the domain model a plain dataclass.
+        """
+
+        from dataclasses import asdict
+
+        return asdict(self)
+
 
 def _get_file_size(file: UploadFile) -> int:
     """
