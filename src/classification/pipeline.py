@@ -54,10 +54,10 @@ import structlog
 from pydantic import BaseModel, Field
 from starlette.datastructures import UploadFile
 
-from src.classification.confidence import aggregate_confidences  # NEW – step 4.4
+from src.classification.confidence import aggregate_confidences
 
 # local
-from src.core.config import get_settings
+from src.core.config import Settings, get_settings
 
 __all__: list[str] = [
     "ClassificationResult",
@@ -66,7 +66,6 @@ __all__: list[str] = [
 ]
 
 logger = structlog.get_logger(__name__)
-settings = get_settings()
 
 # ---------------------------------------------------------------------------
 # Type aliases & data models
@@ -99,7 +98,7 @@ class ClassificationResult(BaseModel):
         description="Per-stage confidence mapping for transparency.",
     )
     pipeline_version: str = Field(
-        "v0.1.0", description="Semantic identifier for the pipeline version."
+        ..., description="Semantic identifier for the pipeline version."
     )
     processing_ms: float = Field(..., description="End-to-end latency in milliseconds.")
 
@@ -172,6 +171,7 @@ async def classify(file: UploadFile) -> ClassificationResult:  # noqa: D401
     """Classify **file** and return a structured :class:`ClassificationResult`."""
 
     start: float = time.perf_counter()
+    current_settings: Settings = get_settings()
 
     # ------------------------------------------------------------------
     # 1. Execute registered stages (currently none) & aggregate scores
@@ -182,13 +182,13 @@ async def classify(file: UploadFile) -> ClassificationResult:  # noqa: D401
     # 2. Aggregate confidences & apply thresholding/early-exit (Step 4.4)
     # ------------------------------------------------------------------
     final_label, final_confidence = aggregate_confidences(
-        stage_outcomes, settings=settings
+        stage_outcomes, settings=current_settings
     )
 
     duration_ms: float = (time.perf_counter() - start) * 1000
 
     # ------------------------------------------------------------------
-    # 2. Build immutable result object
+    # 3. Build immutable result object
     # ------------------------------------------------------------------
     result = ClassificationResult(
         filename=file.filename or "<unknown>",
@@ -197,6 +197,7 @@ async def classify(file: UploadFile) -> ClassificationResult:  # noqa: D401
         label=final_label,
         confidence=round(final_confidence, 3),
         stage_confidences={k: v.confidence for k, v in stage_outcomes.items()},
+        pipeline_version=current_settings.pipeline_version,
         processing_ms=round(duration_ms, 2),
     )
 
@@ -206,5 +207,6 @@ async def classify(file: UploadFile) -> ClassificationResult:  # noqa: D401
         label=result.label,
         confidence=result.confidence,
         processing_ms=result.processing_ms,
+        pipeline_version=result.pipeline_version,
     )
     return result

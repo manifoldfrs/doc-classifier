@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # stdlib
+import os
 from functools import lru_cache
 from typing import Any, List, Set
 
@@ -106,6 +107,11 @@ class Settings(BaseSettings):
         alias="EARLY_EXIT_CONFIDENCE",
         description="If any single stage exceeds this score the pipeline short-circuits.",
     )
+    pipeline_version: str = Field(
+        "v0.1.0",
+        alias="PIPELINE_VERSION",
+        description="Semantic version of the classification pipeline.",
+    )
 
     # Observability
     prometheus_enabled: bool = Field(
@@ -182,6 +188,13 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:  # pragma: no cover – wrapper delegates to Settings()
-    """Return a cached :class:`Settings` instance."""
+    """Return a cached :class:`Settings` instance.
 
+    Cache is cleared for tests if `PYTEST_CURRENT_TEST` is set to ensure
+    test isolation with regards to settings.
+    """
+    # Check if running in a pytest environment and clear cache if so.
+    # This is a common pattern to ensure tests get fresh settings if they modify environment variables.
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        get_settings.cache_clear()
     return Settings()
