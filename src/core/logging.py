@@ -1,37 +1,11 @@
-###############################################################################
-# src/core/logging.py
-# -----------------------------------------------------------------------------
-# Structured logging utilities and HTTP request middleware.
-#
-# This module centralises all logging concerns for the HeronAI service.  Using
-# **structlog** we emit JSON-formatted log lines that are easy to index and
-# search in cloud log drains (Datadog, CloudWatch, etc.).  We avoid configuring
-# logging in disparate locations; instead a single `configure_logging()` call
-# in `src/api/app.py` sets everything up.
-#
-# Key Features
-# ============
-# 1. JSON logs with timestamp, level, logger, message, and contextual fields.
-# 2. Context-local variables via `structlog.contextvars` allowing each request
-#    to carry a `request_id`, `path`, `method`, and `user` across async calls.
-# 3. `RequestLoggingMiddleware` that records latency per request and appends
-#    the `X-Request-ID` response header so clients can correlate logs.
-#
-# The design strictly follows the "single responsibility" rule: the file only
-# deals with logging concerns.  Any domain-specific error handling lives in
-# `src/api/errors.py`.
-###############################################################################
-
 from __future__ import annotations
 
-# stdlib
 import logging
 import sys
 import time
 import uuid
 from typing import Awaitable, Callable
 
-# third-party
 import structlog
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -112,8 +86,6 @@ def configure_logging(debug: bool = False) -> None:  # noqa: D401 – imperative
 
     level: int = logging.DEBUG if debug else logging.INFO
 
-    # Prevent reconfiguration if already initialised (e.g. tests importing the
-    # app multiple times).
     if getattr(configure_logging, "_configured", False):  # type: ignore[attr-defined]
         return
 
@@ -153,16 +125,12 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             request.headers.get("x-request-id") or uuid.uuid4().hex  # 32-char hex
         )
 
-        # Bind context vars available to *all* subsequent log calls in this task
         structlog.contextvars.bind_contextvars(
             request_id=request_id,
             path=request.url.path,
             method=request.method,
         )
 
-        # ------------------------------------------------------------------
-        # Proceed with request processing
-        # ------------------------------------------------------------------
         try:
             response: Response = await call_next(request)
         finally:
@@ -176,6 +144,5 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             )
             structlog.contextvars.clear_contextvars()
 
-        # Add the *same* request-id header so clients can match logs ↔ responses.
         response.headers["X-Request-ID"] = request_id
         return response

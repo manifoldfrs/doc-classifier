@@ -1,60 +1,24 @@
-"""src/api/routes/jobs.py
-###############################################################################
-/v1/jobs – Asynchronous batch-processing stub (Implementation Plan – Step 5.3)
-###############################################################################
-This module provides a *minimal* **in-memory job registry** so that the demo can
-simulate asynchronous classification for large batches (>10 files) without a
-full-blown task-queue.  The design deliberately keeps dependencies to the core
-FastAPI stack only – no external broker is introduced.
-
-Key features
-============
-1. **Job lifecycle** – jobs transition through the finite-state machine:
-   ``queued → processing → done``.  Failed jobs are not modelled (out-of-scope
-   for the stub).
-2. **Thread-safety** – a simple ``asyncio.Lock`` guards registry mutations so
-   concurrent requests/background tasks cannot corrupt state.  Given the demo's
-   single-process nature this is sufficient; production would require a
-   distributed store (Redis/Postgres).
-3. **Reusable helpers** – :pyfunc:`create_job` and :pyfunc:`run_job` are
-   imported by ``src.api.routes.files`` to enqueue work and update status.
-4. **≤ 40 lines per function** – in line with repository engineering rules.
-
-Limitations
------------
-• Results are kept in RAM and lost when the process restarts.
-• No pagination/filtering for the registry – acceptable for demo scale.
-"""
-
 from __future__ import annotations
 
-# stdlib
 import asyncio
 import uuid
 from enum import Enum
 from io import BytesIO
 from typing import Dict, List, Optional
 
-# third-party
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 
 from src.api.schemas import ClassificationResultSchema
-
-# local imports – lightweight to avoid circulars
 from src.classification import classify
-from src.utils.auth import verify_api_key  # NEW – auth dependency
+from src.utils.auth import verify_api_key
 
 __all__: list[str] = [
     "router",
     "create_job",
     "run_job",
 ]
-
-###############################################################################
-# Internal data-structures
-###############################################################################
 
 
 class JobStatus(str, Enum):  # noqa: D101 – simple enum wrapper
@@ -73,10 +37,6 @@ class JobRecord:  # noqa: D101 – minimal container (no Pydantic to keep lightw
 # In-memory registry guarded by a single asyncio.Lock for atomic updates
 _JOB_REGISTRY: Dict[str, JobRecord] = {}
 _REGISTRY_LOCK: asyncio.Lock = asyncio.Lock()
-
-###############################################################################
-# Helper utilities (imported by /v1/files route)
-###############################################################################
 
 
 after_complete_sleep: float = 0.01  # tiny yield to event loop between files
@@ -119,9 +79,7 @@ async def run_job(
         record.status = JobStatus.processing
 
     try:
-        # --------------------------------------------------------------
         # Execute classification sequentially to avoid exhausting CPU.
-        # --------------------------------------------------------------
         for filename, content_type, payload in raw_files:
             upload = _build_upload_from_bytes(filename, content_type, payload)
             try:
@@ -130,7 +88,6 @@ async def run_job(
                     ClassificationResultSchema(**internal_result.dict())
                 )
             except Exception as exc:  # noqa: BLE001 – capture per-file failures
-                # Store minimal error stub so client knows file failed.
                 record.results.append(
                     ClassificationResultSchema(  # type: ignore[call-arg]
                         filename=filename,
@@ -147,14 +104,9 @@ async def run_job(
                 )
             await asyncio.sleep(after_complete_sleep)
     finally:
-        # Always mark terminal state
         async with _REGISTRY_LOCK:
             record.status = JobStatus.done
 
-
-###############################################################################
-# APIRouter – exposes GET /v1/jobs/{job_id}
-###############################################################################
 
 router: APIRouter = APIRouter(
     prefix="/v1",
@@ -182,7 +134,6 @@ async def get_job(job_id: str) -> JSONResponse:  # noqa: D401 – FastAPI handle
     if record.status != JobStatus.done:
         return JSONResponse({"job_id": job_id, "status": record.status})
 
-    # When done, include results (serialisable via Pydantic)
     return JSONResponse(
         {
             "job_id": job_id,

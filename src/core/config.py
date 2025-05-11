@@ -1,50 +1,13 @@
-"""src/core/config.py
-###############################################################################
-Application configuration
-###############################################################################
-This module provides a centralized configuration class using Pydantic for
-parsing and validating settings from environment variables.
-"""
-
 from __future__ import annotations
 
 import json
-
-# stdlib
 import os
 from typing import Any, List, Optional, Set
 
-# third-party
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-"""Application configuration module.
 
-All environment variables required to run the *HeronAI Document Classifier* are
-formalised in the :class:`Settings` model below.  The class is powered by
-*Pydantic-Settings*, which provides a typed, declarative approach for
-configuration management that is compatible across multiple environments
-(local development, CI/CD, container runtimes, Vercel, etc.).
-
-A **single source of truth** for configuration avoids the typical scattering of
-`os.getenv` calls across the code-base and ensures:
-
-1. **Discoverability** – every env var is documented in one location.
-2. **Validation** – type coercion & validation happen once at start-time.
-3. **Performance** – the model is instantiated once and cached via
-   ``@lru_cache`` in ``src/core/__init__.py``.
-4. **Testability** – tests can override env vars using standard monkeypatching.
-
-The class is future-proofed for additional fields (database URLs, Redis, etc.)
-without breaking existing deployments.
-"""
-
-# ---------------------------------------------------------------------------
-# Defaults & constants
-# ---------------------------------------------------------------------------
-
-
-# Helper for parsing comma-separated values
 def _parse_csv_str(v: str) -> List[str]:
     """Parse a comma-separated string into a list of values."""
     return [x.strip() for x in v.split(",") if x.strip()]
@@ -71,26 +34,19 @@ _env_allowed_ext = os.environ.get("ALLOWED_EXTENSIONS")
 if _env_allowed_ext and "[" not in _env_allowed_ext:
     os.environ["ALLOWED_EXTENSIONS"] = json.dumps(_parse_csv_str(_env_allowed_ext))
 
-# ---------------------------------------------------------------------------
-# Settings model
-# ---------------------------------------------------------------------------
-
 
 class Settings(BaseSettings):
     """
     Application configuration settings, loaded from environment variables.
     """
 
-    # Basic app settings
     debug: bool = False
     pipeline_version: str = "v0.1.0"
     commit_sha: Optional[str] = None
     prometheus_enabled: bool = True
 
-    # API key configuration
     allowed_api_keys: List[str] = Field(default_factory=list)
 
-    # File upload settings
     allowed_extensions_raw: str = (
         "pdf,docx,xlsx,xls,csv,jpg,jpeg,png,tiff,tif,gif,bmp,eml,msg,txt"
     )
@@ -130,24 +86,24 @@ class Settings(BaseSettings):
             self.allowed_api_keys = []
 
         # ------------------------------------------------------------------
-        # Derive *allowed_extensions* from the raw comma-separated string.
-        # ------------------------------------------------------------------
-        # We recompute the set **unconditionally** so that changing
-        # ``ALLOWED_EXTENSIONS_RAW`` via environment variables (or monkeypatch)
-        # is always honoured – previous logic skipped recomputation when the
-        # field had already been populated by an earlier config cycle which
-        # caused test expectations to fail.
+        # Derive *allowed_extensions* – honour explicit ``ALLOWED_EXTENSIONS``
+        # from the environment first.  Only fall back to ``allowed_extensions_raw``
+        # when the set is still empty.  This guarantees that developers can
+        # override the defaults via *.env* without the value being silently
+        # overwritten by the *raw* fallback.
 
-        if self.allowed_extensions_raw is None:
-            # Nothing configured – disallow all extensions by default.
-            self.allowed_extensions = set()
-        else:
-            # Empty string means "no extensions allowed"; otherwise parse.
-            self.allowed_extensions = {
-                ext.strip().lower().lstrip(".")
-                for ext in self.allowed_extensions_raw.split(",")
-                if ext.strip()
-            }
+        if not self.allowed_extensions:
+            # No explicit ``ALLOWED_EXTENSIONS`` provided – compute from *raw*.
+            if self.allowed_extensions_raw is None:
+                # Nothing configured – disallow all extensions by default.
+                self.allowed_extensions = set()
+            else:
+                # Empty string means "no extensions allowed"; otherwise parse.
+                self.allowed_extensions = {
+                    ext.strip().lower().lstrip(".")
+                    for ext in self.allowed_extensions_raw.split(",")
+                    if ext.strip()
+                }
 
         return self
 

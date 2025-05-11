@@ -1,52 +1,14 @@
-"""scripts/test_post_files.py
-###############################################################################
-Quick CLI helper to exercise the */v1/files* FastAPI endpoint.
-###############################################################################
-This script is **purely for local/manual testing** – it is **not** part of the
-pytest suite nor referenced by CI.  It sends one or many files under the
-`files/` sample directory (or a custom path) as a multipart/form-data request
-and pretty-prints the JSON response.
-
-Usage (default settings)
-------------------------
-Assuming the API is running locally on the default port::
-
-    python scripts/test_post_files.py \
-        --url http://localhost:8000/v1/files \
-        --api-key my-dev-key \
-        --glob "*.pdf"   # optional pattern filter
-
-Key features
-============
-• **Argparse CLI** – flexible URL, API-key, directory & glob pattern.
-• **Graceful error handling** – HTTP errors are printed with status code & body.
-• **No external dependencies beyond `requests`** – lightweight & familiar.
-
-Limitations / Notes
--------------------
-• The script intentionally avoids asynchronous httpx usage for simplicity.
-• Large files are read fully into memory which is acceptable for demo-sized
-  assets (<10 MB).
-"""
-
 from __future__ import annotations
 
-# stdlib
 import argparse
 import json
 import sys
 from pathlib import Path
 from typing import List
 
-# third-party – keep outside runtime deps; only used manually
 import requests
 
 DEFAULT_FILES_DIR = Path("files")  # repository sample docs
-
-
-# ---------------------------------------------------------------------------
-# CLI helpers
-# ---------------------------------------------------------------------------
 
 
 def _parse_args() -> argparse.Namespace:  # noqa: D401
@@ -87,11 +49,6 @@ def _parse_args() -> argparse.Namespace:  # noqa: D401
         help="Maximum number of files to send in one request.",
     )
     return parser.parse_args()
-
-
-# ---------------------------------------------------------------------------
-# Main routine
-# ---------------------------------------------------------------------------
 
 
 def _collect_files(path: Path, pattern: str, limit: int) -> List[Path]:  # noqa: D401

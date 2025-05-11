@@ -1,27 +1,8 @@
-###############################################################################
-# src/api/errors.py
-# -----------------------------------------------------------------------------
-# Centralised exception handling for the FastAPI layer.
-#
-# FastAPI ships with sensible defaults for unhandled exceptions, but they do
-# not include structured logging nor a consistent error envelope.  This module
-# registers custom handlers that:
-#
-# 1. Emit **structured JSON logs** via structlog – ensuring observability.
-# 2. Return a *uniform* error schema so clients can parse failures reliably.
-# 3. Map Starlette and Pydantic validation errors to semantic HTTP status codes.
-#
-# The `add_exception_handlers()` function is imported by `src/api/app.py` during
-# application start-up so that all routes benefit from the handlers.
-###############################################################################
-
 from __future__ import annotations
 
-# stdlib
 from http import HTTPStatus
 from typing import Any, Dict
 
-# third-party
 import structlog
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -31,10 +12,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 __all__: list[str] = ["add_exception_handlers"]
 
 logger = structlog.get_logger("errors")
-
-# ---------------------------------------------------------------------------
-# Helper utilities
-# ---------------------------------------------------------------------------
 
 
 def _build_error_payload(
@@ -67,11 +44,6 @@ def _build_error_payload(
     if extra:
         payload["error"].update(extra)
     return payload
-
-
-# ---------------------------------------------------------------------------
-# Exception handlers
-# ---------------------------------------------------------------------------
 
 
 async def _http_exception_handler(
@@ -143,11 +115,6 @@ async def _unhandled_exception_handler(
         status_code=HTTPStatus.INTERNAL_SERVER_ERROR,  # 500
         content=payload,
     )
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 
 def add_exception_handlers(app: FastAPI) -> None:  # noqa: D401 – imperative

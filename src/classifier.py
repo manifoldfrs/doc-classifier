@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-# third-party
 from werkzeug.datastructures import FileStorage  # type: ignore[import-not-found]
 
 

@@ -1,46 +1,18 @@
-###############################################################################
-# scripts/train_model.py
-# -----------------------------------------------------------------------------
-# Offline model training utility (Step 4.5)
-#
-# This script generates a *small* synthetic corpus of textual documents using
-# **Faker** and trains a TF-IDF → Multinomial Naive Bayes pipeline.  The
-# resulting artefact (vectoriser + estimator) is serialised to
-# ``datasets/model.pkl`` which is picked up by :pymod:`src.classification.model`.
-#
-# Rationale
-# =========
-# The production-grade demo does **not** target classification accuracy – the
-# goal is to provide a *lightweight* statistical baseline that satisfies the
-# pipeline's API contract.  A corpus of ~3 000 samples keeps the pickle size
-# under 100 KB and thus compliant with Vercel's / GitHub's size constraints.
-#
-# Usage
-# -----
-#     python scripts/train_model.py --samples 3000 --output datasets/model.pkl
-#
-# The command prints a confusion-matrix & accuracy report to stdout so
-# candidates can quickly gauge whether the model is sane.
-###############################################################################
-
 from __future__ import annotations
 
-# stdlib
 import argparse
 import pickle
 from pathlib import Path
 from typing import List, Tuple
 
-# third-party
 from faker import Faker  # type: ignore
 from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB  # type: ignore
 
-# -----------------------------------------------------------------------------
-# Configuration – labels & keyword templates
-# -----------------------------------------------------------------------------
+faker: Faker = Faker()
+
 
 _LABELS_AND_TEMPLATES: dict[str, List[str]] = {
     "invoice": [
@@ -80,13 +52,6 @@ _LABELS_AND_TEMPLATES: dict[str, List[str]] = {
     ],
 }
 
-faker: Faker = Faker()
-
-
-# -----------------------------------------------------------------------------
-# Synthetic corpus generation helpers
-# -----------------------------------------------------------------------------
-
 
 def _render_template(template: str) -> str:  # noqa: D401
     """Replace placeholders in **template** with Faker-generated tokens."""
@@ -123,11 +88,6 @@ def _generate_samples(n: int) -> Tuple[List[str], List[str]]:  # noqa: D401
     return corpus, labels
 
 
-# -----------------------------------------------------------------------------
-# Training pipeline
-# -----------------------------------------------------------------------------
-
-
 def _train(samples: int) -> Tuple[TfidfVectorizer, MultinomialNB]:  # noqa: D401
     """Produce a fitted *(vectoriser, estimator)* pair."""
 
@@ -152,11 +112,6 @@ def _train(samples: int) -> Tuple[TfidfVectorizer, MultinomialNB]:  # noqa: D401
     print(classification_report(y_test, y_pred, digits=3))
 
     return vectoriser, clf
-
-
-# -----------------------------------------------------------------------------
-# CLI entry-point
-# -----------------------------------------------------------------------------
 
 
 def _parse_args() -> argparse.Namespace:  # noqa: D401

@@ -1,46 +1,7 @@
-"""src/ingestion/streamers.py
-###############################################################################
-Streamed file reader utilities used by the ingestion layer.
-
-The *HeronAI* service never loads user-supplied files fully into memory.
-Instead, we operate on **64 KB** chunks (`DEFAULT_CHUNK_SIZE`), yielding them
-asynchronously so downstream classification stages can consume a non-blocking
-byte stream even when processing large uploads.
-
-Public API
-==========
-`stream_file()` – Asynchronous generator yielding `bytes` chunks from a
-`starlette.datastructures.UploadFile` instance.  The helper guarantees:
-
-1. A single seek to the file start so that previously inspected uploads (e.g.
-   during validation) are rewinded before classification.
-2. *Never* yields empty chunks – when `file.read()` returns an empty `bytes`
-   object the generator exits gracefully.
-3. Enforces a positive, non-zero `chunk_size` argument.
-
-All logic is intentionally contained within a single function to abide by the
-*single-responsibility* rule and the project's limit of **≤ 40 lines per
-function**.
-
-Edge cases & error handling
----------------------------
-• Negative or zero `chunk_size` raises `ValueError` (programming error).
-• Any unexpected I/O issues from the underlying `UploadFile` propagate
-  naturally and are caught by the global FastAPI exception handler so we avoid
-  swallowing stack traces.
-
-The module does *not* close the file object – lifecycle management remains the
-responsibility of the caller/FastAPI which disposes of the temporary upload
-once the request completes.
-###############################################################################
-"""
-
 from __future__ import annotations
 
-# stdlib
 from typing import AsyncGenerator, Final
 
-# third-party
 import structlog
 from starlette.datastructures import UploadFile
 
@@ -48,7 +9,7 @@ __all__: list[str] = ["stream_file"]
 
 logger = structlog.get_logger(__name__)
 
-DEFAULT_CHUNK_SIZE: Final[int] = 64 * 1024  # 64 KB as mandated by spec
+DEFAULT_CHUNK_SIZE: Final[int] = 64 * 1024  # 64 KB
 
 
 async def stream_file(
@@ -89,7 +50,7 @@ async def stream_file(
 
     while True:
         chunk: bytes = await file.read(chunk_size)
-        if not chunk:  # EOF reached – stop iteration
+        if not chunk:
             break
 
         total_read += len(chunk)

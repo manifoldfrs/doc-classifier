@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# =============================================================================
-# lint.sh – Project-wide static analysis helper
-# =============================================================================
-# This script aggregates all mandatory code-quality checks into a single, easy
-# to remember command:
-#
-#     ./scripts/lint.sh
-#
-# The same checks run in CI (see .github/workflows/ci.yml) so running this
-# locally lets developers catch issues before pushing.
-# =============================================================================
-
 set -euo pipefail
 
 # Navigate to repository root regardless of where the script is invoked.

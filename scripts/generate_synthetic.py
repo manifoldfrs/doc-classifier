@@ -1,37 +1,6 @@
 #!/usr/bin/env python
-###############################################################################
-# scripts/generate_synthetic.py
-# -----------------------------------------------------------------------------
-# Synthetic document generator (Implementation Plan – Step 8.1)
-#
-# This CLI utility produces a *corpus* of **synthetic documents** across the
-# primary labels required by the HeronAI demo service.  The generated artefacts
-# are intended for **manual experimentation, model prototyping**, and pipeline
-# demonstrations.  They are *not* used directly by the runtime service which
-# operates exclusively on user-supplied uploads.
-#
-# Key characteristics
-# ===================
-# 1. **Multi-format output** – depending on the *label* it emits `.txt`, `.csv`,
-#    or `.png` files so the parsing layer is covered.
-# 2. **Lightweight dependencies** – utilises only *Faker*, *pandas*, and
-#    *Pillow* – all of which are already part of the project requirements.
-# 3. **Configurable via CLI** – callers can tweak the number of samples, random
-#    seed, and output directory.
-# 4. **≤ 40 lines per function** – adheres to repo engineering rules.
-# 5. **Explicit typing & no broad excepts** – `mypy --strict` compliant.
-#
-# Example
-# -------
-#     python scripts/generate_synthetic.py --count 500 --out datasets/synthetic
-#
-# The command prints a summary table and writes ~500 files spread across
-#    datasets/synthetic/<label>/.
-###############################################################################
-
 from __future__ import annotations
 
-# stdlib
 import argparse
 import random
 import sys
@@ -41,16 +10,10 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import pandas as pd
-
-# third-party
 from faker import Faker  # type: ignore
 from PIL import Image, ImageDraw, ImageFont  # type: ignore
 
-__all__: List[str] = []  # script – no public API
-
-###############################################################################
-# Constants & templates
-###############################################################################
+__all__: List[str] = []
 
 faker: Faker = Faker()
 
@@ -103,11 +66,8 @@ _TEMPLATES: Dict[str, List[str]] = {
     ],
 }
 
-###############################################################################
+
 # Template renderer & content builders – kept small to satisfy line limits
-###############################################################################
-
-
 def _render(template: str) -> str:
     """Return *template* with faker placeholders substituted."""
 
@@ -175,10 +135,7 @@ def _write_png(path: Path, text: str) -> None:
     img.save(path, format="PNG")
 
 
-###############################################################################
 # Dispatch table – label → (extension, writer-func)
-###############################################################################
-
 _WRITERS: Dict[str, Tuple[str, callable[[Path, str], None]]] = {
     "invoice": ("txt", _write_txt),
     "bank_statement": ("csv", _write_csv),
@@ -189,11 +146,8 @@ _WRITERS: Dict[str, Tuple[str, callable[[Path, str], None]]] = {
     "form": ("txt", _write_txt),
 }
 
-###############################################################################
+
 # CLI helpers
-###############################################################################
-
-
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate synthetic documents for HeronAI demo",
@@ -226,11 +180,6 @@ def _summarise(generated: Dict[str, int]) -> None:
         print(f"{label:17} : {generated.get(label, 0)}")
 
 
-###############################################################################
-# Main entry-point
-###############################################################################
-
-
 def main() -> None:  # noqa: D401
     args = _parse_args()
 
@@ -251,7 +200,6 @@ def main() -> None:  # noqa: D401
         ext, writer = _WRITERS[label]
         text_content: str = _build_text(label)
 
-        # Sub-directory per label keeps dataset tidy
         sub_dir: Path = args.out_dir / label
         sub_dir.mkdir(parents=True, exist_ok=True)
 

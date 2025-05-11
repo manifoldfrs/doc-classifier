@@ -1,27 +1,4 @@
 #!/usr/bin/env python
-###############################################################################
-# scripts/generate_api_key.py
-# -----------------------------------------------------------------------------
-# Utility script that generates cryptographically-random API keys compatible
-# with the HeronAI demo service.  Keys are **UUIDv4** values rendered in their
-# canonical 32-char *hex* representation (no dashes) so they fit comfortably
-# in HTTP headers and environment variables.
-#
-# Usage
-# -----
-#   python scripts/generate_api_key.py            # prints one key
-#   python scripts/generate_api_key.py --count 5  # prints five keys
-#
-# The script does *not* mutate any files – it only prints to stdout so callers
-# can redirect output or copy-paste the keys into their `.env` under the
-# `ALLOWED_API_KEYS` variable.
-#
-# Rationale
-# =========
-# • Keeping the helper in *scripts/* avoids adding runtime dependencies.
-# • UUIDv4 provides 122 bits of entropy – sufficient for demo-grade secrets.
-###############################################################################
-
 from __future__ import annotations
 
 import argparse
@@ -29,7 +6,7 @@ import sys
 import uuid
 from typing import List
 
-__all__: list[str] = []  # script – no public API
+__all__: list[str] = []
 
 
 def _parse_args() -> argparse.Namespace:  # noqa: D401 – CLI helper

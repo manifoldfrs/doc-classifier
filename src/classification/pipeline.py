@@ -1,11 +1,3 @@
-"""src/classification/pipeline.py
-###############################################################################
-Classification pipeline orchestrator
-###############################################################################
-This module contains the main classification pipeline implementation,
-orchestrating multiple classification stages and aggregating their results.
-"""
-
 from __future__ import annotations
 
 import time
@@ -17,10 +9,8 @@ from starlette.datastructures import UploadFile
 
 from src.core.config import get_settings
 
-# Initialize logger
 logger = structlog.get_logger(__name__)
 
-# Registry for classification stages
 STAGE_REGISTRY: List[Callable] = []
 
 
@@ -92,18 +82,10 @@ def _get_file_size(file: UploadFile) -> int:
     Returns:
         Size in bytes
     """
-    # Get current position
     current_pos = file.file.tell()
-
-    # Seek to end
-    file.file.seek(0, 2)
-
-    # Get size
+    file.file.seek(0, 2)  # Seek to end
     size = file.file.tell()
-
-    # Reset position
-    file.file.seek(current_pos)
-
+    file.file.seek(current_pos)  # Reset position
     return size
 
 
@@ -140,15 +122,12 @@ async def classify(file: UploadFile) -> ClassificationResult:
     start_time = time.perf_counter()
     settings = get_settings()
 
-    # Get file metadata
     size_bytes = _get_file_size(file)
     filename = file.filename or "<unknown>"
     mime_type = file.content_type or "application/octet-stream"
 
-    # Execute all registered stages
     stage_outcomes = await _execute_stages(file)
 
-    # Extract stage confidences for result
     stage_confidences = {
         stage_name: outcome.confidence for stage_name, outcome in stage_outcomes.items()
     }
@@ -156,14 +135,11 @@ async def classify(file: UploadFile) -> ClassificationResult:
     # Import here to break circular import
     from src.classification.confidence import aggregate_confidences
 
-    # Aggregate confidences to determine final label and confidence
     label, confidence = aggregate_confidences(stage_outcomes, settings=settings)
 
-    # Calculate processing time
     end_time = time.perf_counter()
     processing_ms = (end_time - start_time) * 1000
 
-    # Create and return result
     result = ClassificationResult(
         filename=filename,
         mime_type=mime_type,
@@ -175,7 +151,6 @@ async def classify(file: UploadFile) -> ClassificationResult:
         processing_ms=processing_ms,
     )
 
-    # Log classification result
     logger.info(
         "classification_complete",
         filename=filename,

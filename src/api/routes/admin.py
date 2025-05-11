@@ -1,46 +1,14 @@
-"""src/api/routes/admin.py
-###############################################################################
-Administrative and health-check routes (Implementation Plan – Step 5.2)
-###############################################################################
-This module provides a dedicated **APIRouter** exposing operational endpoints
-that are required for production readiness and monitoring:
-
-1. ``GET /v1/health`` – Liveness probe consumed by load-balancers and uptime
-   checks.  Returns HTTP **200** together with a payload indicating the current
-   git commit SHA so deployments can be correlated with revision history.
-2. ``GET /v1/version`` – Human-friendly endpoint that exposes the semantic
-   application version *and* the commit SHA.  This is useful for CI/CD
-   pipelines and troubleshooting as it avoids parsing the OpenAPI schema.
-
-Design notes
-============
-• The router lives in its own module to keep concerns *separated* from
-  business-logic routes (file uploads, job polling, etc.).  This aligns with
-  the repository's **Single Responsibility** rule.
-• Endpoints are intentionally lightweight and avoid any blocking I/O; the
-  service currently has no dependencies (DB, Redis) so expensive readiness
-  checks are unnecessary.
-• Both endpoints bind to the ``admin`` tag so that the generated OpenAPI
-  documentation groups them together.
-"""
-
 from __future__ import annotations
 
-# third-party
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-# local
 from src.core.config import Settings, get_settings
 from src.utils.auth import verify_api_key
 
 __all__: list[str] = [
     "router",
 ]
-
-# ---------------------------------------------------------------------------
-# Router instance – mounted with prefix "/v1" by the registration helper.
-# ---------------------------------------------------------------------------
 
 router: APIRouter = APIRouter(
     prefix="/v1",
@@ -83,7 +51,7 @@ async def version(
 
     return JSONResponse(
         {
-            "version": request.app.version,  # set in ``src.api.app._create_fastapi_app``
+            "version": request.app.version,
             "commit_sha": settings.commit_sha,
         }
     )

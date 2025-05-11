@@ -1,34 +1,3 @@
-"""scripts/test_async_job.py
-###############################################################################
-Exercise the asynchronous batch-upload flow (FastAPI */v1/files* + */v1/jobs*).
-###############################################################################
-This helper uploads *N > 10* sample files so the backend enqueues a background
-job.  It then polls */v1/jobs/{job_id}* until the job transitions to **done**
-and prints the final JSON payload.
-
-The script is intended for **manual local testing** – it is *not* part of the
-pytest suite nor shipped to production.
-
-Usage (defaults):
------------------
-    python scripts/test_async_job.py \
-        --url http://localhost:8000 \
-        --glob "*.pdf" \
-        --count 12 \
-        --api-key my-dev-key
-
-Key features
-============
-• Blocking polling loop with exponential back-off (cap 5 s).
-• Graceful HTTP error handling.
-• Only dependency is `requests`.
-
-Limitations
------------
-• Files are loaded completely into memory.  Acceptable for ≤10 MB demo limit.
-• No SIGINT handling – Ctrl-C aborts immediately.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -42,11 +11,6 @@ import requests
 
 DEFAULT_DIR = Path("files")
 ASYNC_THRESHOLD = 11  # backend enqueues when >10
-
-
-# ---------------------------------------------------------------------------
-# CLI helpers
-# ---------------------------------------------------------------------------
 
 
 def _parse_args() -> argparse.Namespace:  # noqa: D401
@@ -92,11 +56,6 @@ def _parse_args() -> argparse.Namespace:  # noqa: D401
     return parser.parse_args()
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _collect_files(directory: Path, pattern: str, count: int) -> List[Path]:
     if not directory.is_dir():
         print(f"❌ {directory} is not a directory", file=sys.stderr)
@@ -113,11 +72,6 @@ def _collect_files(directory: Path, pattern: str, count: int) -> List[Path]:
 
 def _build_multipart(paths: List[Path]):
     return [("files", (p.name, p.read_bytes())) for p in paths]
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:  # noqa: D401
