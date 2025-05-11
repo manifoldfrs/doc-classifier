@@ -13,7 +13,7 @@ insufficient content.  Raster images are converted to plaintext via Tesseract
 Design highlights
 =================
 1. **Extension gate** – the stage only triggers for extensions registered in
-   :pydata:`src.parsing.IMAGE_EXTRACTORS` ensuring we do not waste CPU cycles on
+   :pydata:`src.parsing.registry.IMAGE_EXTRACTORS` ensuring we do not waste CPU cycles on
    PDFs/DOCX that are better handled elsewhere.
 2. **Shared heuristics** – in the absence of a statistical model we reuse the
    same regex patterns defined in ``text.py`` for deterministic fallback.
@@ -32,7 +32,7 @@ from starlette.datastructures import UploadFile
 
 # local
 from src.classification.pipeline import StageOutcome
-from src.parsing import IMAGE_EXTRACTORS
+from src.parsing.registry import IMAGE_EXTRACTORS  # Updated import
 
 logger = structlog.get_logger(__name__)
 

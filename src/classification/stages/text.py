@@ -4,7 +4,7 @@ Text-content classification stage (Step 4.3)
 ###############################################################################
 This module implements the *text* stage of the multi-stage document
 classification pipeline.  It converts an uploaded file into **plain-text** using
-one of the specialised extractors defined in :pymod:`src.parsing` and feeds the
+one of the specialised extractors defined in :py:mod:`src.parsing.registry` and feeds the
 resulting string into the machine-learning model exposed by
 :pymod:`src.classification.model` when available.  The stage is designed to be
 robust even when the model is not yet present (early implementation steps) by
@@ -47,7 +47,7 @@ from starlette.datastructures import UploadFile
 
 # local
 from src.classification.pipeline import StageOutcome
-from src.parsing import TEXT_EXTRACTORS
+from src.parsing.registry import TEXT_EXTRACTORS  # Updated import
 
 logger = structlog.get_logger(__name__)
 

@@ -1,1 +1,1 @@
-SKIP=mypy git commit -m "add integration test for files"
+SKIP=mypy git commit -m "refactor imports"
