@@ -56,7 +56,9 @@ class Settings(BaseSettings):
 
     # Classification confidence settings
     confidence_threshold: float = 0.65
-    early_exit_confidence: float = 0.9
+    # Early-exit activates when any classification stage reaches this confidence.
+    # Default tightened to 0.95 to reduce false-positives
+    early_exit_confidence: float = 0.95
 
     model_config = SettingsConfigDict(
         env_file=".env",
