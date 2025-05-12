@@ -1,7 +1,6 @@
-"""src/classification/stages/text.py
-###############################################################################
+"""
 Stage 3: Text content-based document classification
-###############################################################################
+
 This module implements the text stage in the classification pipeline.
 It analyzes document text content to determine document type.
 """
@@ -9,7 +8,7 @@ It analyzes document text content to determine document type.
 from __future__ import annotations
 
 import re
-from typing import Tuple
+from typing import Awaitable, Callable, Optional, Tuple
 
 from starlette.datastructures import UploadFile
 
@@ -21,12 +20,21 @@ from src.parsing.pdf import extract_text_from_pdf
 # Flag indicating whether ML model is available
 _MODEL_AVAILABLE = False  # Set to True when ML model is implemented
 
+
 # Text extractors mapping file extensions to extraction functions
-TEXT_EXTRACTORS = {
+async def _read_txt(file: UploadFile) -> str:  # noqa: D401 – tiny helper
+    """Read plain-text files fully (runs off-thread implicitly via Starlette)."""
+
+    await file.seek(0)
+    data = await file.read()
+    return data.decode("utf-8", errors="replace")
+
+
+TEXT_EXTRACTORS: dict[str, Callable[[UploadFile], Awaitable[str]]] = {
     "pdf": extract_text_from_pdf,
     "docx": extract_text_from_docx,
     "csv": extract_text_from_csv,
-    "txt": lambda file: file.read().decode("utf-8", errors="replace"),
+    "txt": _read_txt,
 }
 
 # Heuristic patterns for document classification
@@ -44,7 +52,7 @@ _HEURISTIC_PATTERNS = {
 class _MockModel:
     """Mock ML model for text classification until real model is implemented."""
 
-    def predict(self, text: str) -> Tuple[str, float]:
+    def predict(self, text: str) -> Tuple[Optional[str], float]:
         """Predict document type from text."""
         if not text or not text.strip():
             return None, 0.0

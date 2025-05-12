@@ -31,33 +31,22 @@
 
 from __future__ import annotations
 
-# stdlib
 import pickle
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Tuple
 
-# third-party
-from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore
-from sklearn.naive_bayes import MultinomialNB  # type: ignore
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
 
 __all__: list[str] = [
     "predict",
     "ModelNotAvailableError",
 ]
 
-# ---------------------------------------------------------------------------
-# Custom exceptions – explicit over bare Exception so callers can react.
-# ---------------------------------------------------------------------------
-
 
 class ModelNotAvailableError(RuntimeError):
     """Raised when the persisted ML model artefact cannot be loaded."""
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
 
 
 class _ModelContainer:  # noqa: D101 – private quasi-struct
@@ -75,10 +64,6 @@ class _ModelContainer:  # noqa: D101 – private quasi-struct
         predicted_index: int = probas.argmax()
         return self.estimator.classes_[predicted_index], float(probas[predicted_index])
 
-
-# ---------------------------------------------------------------------------
-# Artefact discovery & lazy loader
-# ---------------------------------------------------------------------------
 
 # The model is expected at ``<repo-root>/datasets/model.pkl``.
 _DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[2] / "datasets" / "model.pkl"
@@ -131,11 +116,6 @@ def _get_model(path: Path = _DEFAULT_MODEL_PATH) -> _ModelContainer:  # noqa: D4
     """Return the singleton :class:`_ModelContainer`, loading lazily."""
 
     return _load_pickle(path)
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 
 def predict(text: str) -> Tuple[str | None, float | None]:  # noqa: D401

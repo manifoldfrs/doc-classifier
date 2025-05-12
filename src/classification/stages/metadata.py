@@ -55,7 +55,7 @@ _CONFIDENCE_SCORE: float = 0.86
 
 # Document patterns in metadata
 # Maps regex patterns to (label, confidence) tuples
-METADATA_PATTERNS: Dict[Pattern, Tuple[str, float]] = {
+METADATA_PATTERNS: Dict[Pattern[str], Tuple[str, float]] = {
     re.compile(r"invoice|receipt|bill", re.IGNORECASE): ("invoice", 0.86),
     re.compile(r"bank.*statement|statement", re.IGNORECASE): ("bank_statement", 0.83),
     re.compile(r"financial|report", re.IGNORECASE): ("financial_report", 0.82),

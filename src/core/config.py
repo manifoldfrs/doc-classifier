@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, List, Optional, Set
+from typing import Any, List, Optional, Set, cast
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,7 +18,7 @@ def _parse_csv_str(v: str) -> List[str]:
 # ---------------------------------------------------------------------------
 
 # Ensure ``ALLOWED_API_KEYS`` is **JSON** so that Pydantic can coerce it into a
-# ``List[str]`` without raising ``SettingsError``.  Developers may prefer the
+# ``List[str]`` without raising ``SettingsError``.  Devs may prefer the
 # more convenient comma-separated style in *.env* files which would otherwise
 # trip Pydantic's strict JSON parser.
 
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     allowed_api_keys: List[str] = Field(default_factory=list)
 
-    allowed_extensions_raw: str = (
+    allowed_extensions_raw: Optional[str] = (
         "pdf,docx,xlsx,xls,csv,jpg,jpeg,png,tiff,tif,gif,bmp,eml,msg,txt"
     )
     allowed_extensions: Set[str] = set()
@@ -59,16 +59,7 @@ class Settings(BaseSettings):
     early_exit_confidence: float = 0.9
 
     model_config = SettingsConfigDict(
-        # Dynamically disable *.env* loading when running under pytest to ensure
-        # that unit-tests which explicitly manipulate ``os.environ`` are not
-        # polluted by values coming from the developer's local *.env* file.
-        #
-        # The presence of ``PYTEST_CURRENT_TEST`` is a reliable indicator that
-        # we are inside a pytest session because the variable is automatically
-        # injected by the framework for each collected test.  Using this flag
-        # keeps the behaviour identical to production while giving tests full
-        # control over the effective environment.
-        env_file=".env",  # Overridden to ``None`` in *tests/conftest.py* during unit-tests.
+        env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
         env_nested_delimiter=None,
@@ -145,14 +136,15 @@ class Settings(BaseSettings):
 
     @field_validator("allowed_api_keys", mode="before")
     @classmethod
-    def _coerce_allowed_api_keys(cls, v: Any) -> List[str]:  # noqa: D401
+    def _coerce_allowed_api_keys(cls, v: Any) -> List[str]:
         """Allow comma-separated string in addition to a proper JSON array."""
 
         if isinstance(v, str):
             return _parse_csv_str(v)
         if v is None:
             return []
-        return v
+        # If validation has already produced a proper list[str] just return it.
+        return cast(List[str], v)
 
     @field_validator("allowed_extensions", mode="before")
     @classmethod
@@ -177,7 +169,12 @@ class Settings(BaseSettings):
             return {
                 str(ext).strip().lower().lstrip(".") for ext in v if str(ext).strip()
             }
-        return v
+        # Fallback – make a best-effort cast instead of returning *Any* to satisfy
+        # strict typing expectations.
+        from typing import Set as _Set
+        from typing import cast
+
+        return cast(_Set[str], v)
 
 
 ###############################################################################

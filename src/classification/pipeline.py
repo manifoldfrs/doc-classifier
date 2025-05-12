@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional
 
 import structlog
 from starlette.datastructures import UploadFile
@@ -11,7 +11,7 @@ from src.core.config import get_settings
 
 logger = structlog.get_logger(__name__)
 
-STAGE_REGISTRY: List[Callable] = []
+STAGE_REGISTRY: list[Callable[[UploadFile], Awaitable["StageOutcome"]]] = []
 
 
 @dataclass
@@ -53,11 +53,8 @@ class ClassificationResult:
     pipeline_version: str = "v0.1.0"
     processing_ms: float = 0.0
 
-    # ------------------------------------------------------------------
     # Utility helpers
-    # ------------------------------------------------------------------
-
-    def dict(self) -> dict:  # noqa: D401 – provide API-compatible helper
+    def dict(self) -> dict[str, Any]:
         """Return a serialisable ``dict`` representation.
 
         The public API layer (``src.api.routes.*``) expects dataclass

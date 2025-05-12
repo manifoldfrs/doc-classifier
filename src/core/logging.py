@@ -4,33 +4,27 @@ import logging
 import sys
 import time
 import uuid
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 
+# structlog must be imported before its typing helpers
 import structlog
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
+from structlog.types import Processor
 
 __all__: list[str] = [
     "configure_logging",
     "RequestLoggingMiddleware",
 ]
 
-# ---------------------------------------------------------------------------
-# Structlog configuration helpers
-# ---------------------------------------------------------------------------
-
 
 def _ensure_request_context(
-    logger, method_name, event_dict
-):  # noqa: D401 – structlog processor
-    """Guarantee *request_id*, *user* and *path* keys exist in *event_dict*.
-
-    Any missing field is populated with ``None`` so that log-shipping systems
-    relying on a fixed schema (e.g. Elastic Common Schema, Datadog facets)
-    consume uniform payloads.  The processor should execute *after*
-    ``merge_contextvars`` so that bound context has priority over defaults.
-    """
+    logger: Any,
+    method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Guarantee *request_id*, *user* and *path* keys exist in *event_dict*."""
 
     event_dict.setdefault("request_id", None)
     event_dict.setdefault("user", None)
@@ -40,7 +34,7 @@ def _ensure_request_context(
 
 # Re-assemble the JSON processor chain with the new helper placed *after*
 # ``merge_contextvars`` so it only fills in missing keys.
-_JSON_PROCESSORS = [
+_JSON_PROCESSORS: list[Processor] = [
     structlog.contextvars.merge_contextvars,
     _ensure_request_context,
     structlog.processors.add_log_level,
@@ -70,7 +64,10 @@ def _configure_stdlib_logging(level: int) -> None:
     root_logger.addHandler(handler)
 
 
-def configure_logging(debug: bool = False) -> None:  # noqa: D401 – imperative
+_LOGGING_CONFIGURED: bool = False
+
+
+def configure_logging(debug: bool = False) -> None:
     """Initialise `structlog` for the entire process.
 
     Call **exactly once** and *before* any loggers are created.  `uvicorn`
@@ -84,10 +81,12 @@ def configure_logging(debug: bool = False) -> None:  # noqa: D401 – imperative
         When *True* lowers the log level to ``DEBUG``; otherwise ``INFO``.
     """
 
-    level: int = logging.DEBUG if debug else logging.INFO
+    global _LOGGING_CONFIGURED
 
-    if getattr(configure_logging, "_configured", False):  # type: ignore[attr-defined]
+    if _LOGGING_CONFIGURED:
         return
+
+    level: int = logging.DEBUG if debug else logging.INFO
 
     _configure_stdlib_logging(level)
 
@@ -99,12 +98,7 @@ def configure_logging(debug: bool = False) -> None:  # noqa: D401 – imperative
         cache_logger_on_first_use=True,
     )
 
-    configure_logging._configured = True  # type: ignore[attr-defined]
-
-
-# ---------------------------------------------------------------------------
-# Middleware – HTTP request logging
-# ---------------------------------------------------------------------------
+    _LOGGING_CONFIGURED = True
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -115,7 +109,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     context variables – this ensures consistency across log entries.
     """
 
-    async def dispatch(  # noqa: D401 – Starlette middleware signature
+    async def dispatch(
         self,
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],

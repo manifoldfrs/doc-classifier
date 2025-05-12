@@ -48,46 +48,59 @@ def _build_error_payload(
 
 async def _http_exception_handler(
     request: Request,
-    exc: StarletteHTTPException,
+    exc: Exception,
 ) -> JSONResponse:
     """Handle exceptions explicitly raised by the application/routers."""
+
+    if isinstance(exc, StarletteHTTPException):
+        star_exc: StarletteHTTPException = exc
+    else:
+        star_exc = StarletteHTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        )
 
     logger.warning(
         "http_exception",
         path=request.url.path,
-        status_code=exc.status_code,
-        detail=str(exc.detail),
+        status_code=star_exc.status_code,
+        detail=str(star_exc.detail),
     )
 
     payload = _build_error_payload(
-        code=exc.status_code,
-        message=str(exc.detail),
+        code=star_exc.status_code,
+        message=str(star_exc.detail),
         request_id=request.headers.get("x-request-id"),
     )
-    # Maintain compatibility with FastAPI default error schema expected by
-    # some client tests that assert on ``response.json()['detail']``.
-    payload["detail"] = str(exc.detail)
+    payload["detail"] = str(star_exc.detail)
 
-    return JSONResponse(status_code=exc.status_code, content=payload)
+    return JSONResponse(status_code=star_exc.status_code, content=payload)
 
 
 async def _validation_error_handler(
     request: Request,
-    exc: RequestValidationError,
+    exc: Exception,
 ) -> JSONResponse:
     """Handle body/query/path parameter validation failures (422)."""
+
+    if isinstance(exc, RequestValidationError):
+        validation_exc: RequestValidationError = exc
+    else:
+        validation_exc = RequestValidationError(
+            [{"loc": (), "msg": str(exc), "type": "error"}]
+        )
 
     logger.warning(
         "validation_error",
         path=request.url.path,
-        errors=exc.errors(),
+        errors=validation_exc.errors(),
     )
 
     payload = _build_error_payload(
         code="validation_error",
         message="Invalid request parameters.",
         request_id=request.headers.get("x-request-id"),
-        extra={"details": exc.errors()},
+        extra={"details": validation_exc.errors()},
     )
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=payload

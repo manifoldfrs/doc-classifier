@@ -13,10 +13,10 @@ from src.core.config import get_settings
 from src.core.logging import RequestLoggingMiddleware, configure_logging
 
 try:
-    from prometheus_fastapi_instrumentator import Instrumentator  # type: ignore
+    from prometheus_fastapi_instrumentator import Instrumentator
 
     _PROM_AVAILABLE = True
-except ModuleNotFoundError:  # pragma: no cover – optional dependency missing
+except ModuleNotFoundError:
     _PROM_AVAILABLE = False
 
 __all__: list[str] = ["app"]

@@ -4,7 +4,7 @@ import asyncio
 from io import BytesIO
 
 import structlog
-from pdfminer.high_level import extract_text  # type: ignore[import-not-found]
+from pdfminer.high_level import extract_text
 from starlette.datastructures import UploadFile
 
 __all__: list[str] = ["extract_text_from_pdf"]

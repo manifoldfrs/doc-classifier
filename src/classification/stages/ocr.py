@@ -1,7 +1,5 @@
-"""src/classification/stages/ocr.py
-###############################################################################
+"""
 Stage 4: OCR-based document classification
-###############################################################################
 This module implements the OCR stage in the classification pipeline.
 It performs optical character recognition on images to extract text
 for classification.
@@ -10,7 +8,7 @@ for classification.
 from __future__ import annotations
 
 import re
-from typing import Tuple
+from typing import Optional, Tuple
 
 from starlette.datastructures import UploadFile
 
@@ -46,7 +44,7 @@ _HEURISTIC_PATTERNS = {
 class _MockModel:
     """Mock ML model for OCR text classification until real model is implemented."""
 
-    def predict(self, text: str) -> Tuple[str, float]:
+    def predict(self, text: str) -> Tuple[Optional[str], float]:
         """Predict document type from OCR text."""
         if not text or not text.strip():
             return None, 0.0

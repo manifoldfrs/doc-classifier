@@ -10,7 +10,7 @@ uvicorn[standard]
 # -----------------------------------------------------------------------------
 python-dotenv
 pydantic
-pydantic-settings
+pydantic-settings==2.8.0
 python-multipart
 
 # -----------------------------------------------------------------------------

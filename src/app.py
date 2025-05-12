@@ -18,20 +18,14 @@ Key points:
 
 from __future__ import annotations
 
-# stdlib
 import os
-from typing import Final
+from typing import Final, Tuple, Union
 
-# third-party
-from dotenv import load_dotenv  # type: ignore[import-not-found]
-from flask import Flask, Response, jsonify, request  # type: ignore[import-not-found]
+from dotenv import load_dotenv
+from flask import Flask, Response, jsonify, request
 
-# local
 from src.classifier import classify_file
 
-# ---------------------------------------------------------------------------
-# Environment / configuration
-# ---------------------------------------------------------------------------
 load_dotenv()
 
 ALLOWED_EXTENSIONS: Final[set[str]] = {
@@ -44,18 +38,10 @@ ALLOWED_EXTENSIONS: Final[set[str]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Flask application factory (simple singleton suffices for demo)
-# ---------------------------------------------------------------------------
 flask_app = Flask(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Helper utilities
-# ---------------------------------------------------------------------------
-
-
-def allowed_file(filename: str) -> bool:  # noqa: D401 – simple helper
+def allowed_file(filename: str) -> bool:
     """Return *True* if **filename** has an allowed extension.
 
     The check is **case-insensitive** and expects a period separating the base
@@ -65,11 +51,12 @@ def allowed_file(filename: str) -> bool:  # noqa: D401 – simple helper
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# ---------------------------------------------------------------------------
-# Routes – kept minimal as new functionality moves to FastAPI
-# ---------------------------------------------------------------------------
-@flask_app.route("/classify_file", methods=["POST"])
-def classify_file_route() -> Response:  # noqa: D401 – Flask view function
+# Flask return value may be a Response instance or a tuple (Response, status)
+ResponseReturn = Union[Response, Tuple[Response, int]]
+
+
+@flask_app.route("/classify_file", methods=["POST"])  # type: ignore[misc]
+def classify_file_route() -> ResponseReturn:
     """Classify a single file based on *heuristics* in ``src.classifier``.
 
     The endpoint mirrors the original behaviour for continuity.  Validation is
@@ -91,14 +78,8 @@ def classify_file_route() -> Response:  # noqa: D401 – Flask view function
     return jsonify({"file_class": file_class}), 200
 
 
-# ---------------------------------------------------------------------------
-# Temporary backwards-compat alias – will be removed in Step 9
-# ---------------------------------------------------------------------------
-app = flask_app  # noqa: N816 – alias kept for test compatibility
+app = flask_app
 
 
-# ---------------------------------------------------------------------------
-# Local development entry-point
-# ---------------------------------------------------------------------------
-if __name__ == "__main__":  # pragma: no cover – manual dev run only
+if __name__ == "__main__":
     flask_app.run(debug=True)

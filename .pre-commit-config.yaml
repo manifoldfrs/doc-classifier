@@ -23,4 +23,10 @@ repos:
     hooks:
       - id: mypy
         args: ["--config-file", "pyproject.toml"]
-        additional_dependencies: [] # keep env lean
+        language_version: python3.11
+        additional_dependencies:
+          - "fastapi==0.111.0"
+          - "pydantic==2.7.1"
+          - "pydantic-settings==2.8.0"
+          - "starlette==0.37.2"
+        files: ^src/
