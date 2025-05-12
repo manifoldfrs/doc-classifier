@@ -1,19 +1,3 @@
-"""tests/unit/classification/stages/test_common_stages.py
-###############################################################################
-Unit tests for individual classification stages.
-(``src.classification.stages.*``)
-###############################################################################
-This module contains tests for each classification stage:
-- Filename stage
-- Metadata stage
-- Text stage
-- OCR stage
-
-Tests verify that each stage correctly processes mock UploadFile objects,
-interacts with its dependencies (like parsers or ML models) as expected,
-and returns the correct StageOutcome.
-"""
-
 from __future__ import annotations
 
 from io import BytesIO
@@ -22,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from starlette.datastructures import UploadFile
 
-# Stages to test
+from src.classification.model import ModelNotAvailableError
 from src.classification.stages.filename import stage_filename
 from src.classification.stages.metadata import stage_metadata
 from src.classification.stages.ocr import stage_ocr
@@ -155,27 +139,34 @@ async def test_stage_metadata_pdf_extraction_fails(mock_upload_file_factory) -> 
 async def test_stage_text_with_model(mock_upload_file_factory) -> None:
     """Tests text stage when ML model is available and predicts."""
     mock_file = mock_upload_file_factory("invoice.pdf", b"content", "application/pdf")
-
-    # Mock the TEXT_EXTRACTORS for 'pdf'
     mock_pdf_parser = AsyncMock(return_value="extracted invoice text")
 
+    # Patch the TEXT_EXTRACTORS within the text stage module
+    # Patch the imported 'predict' function within the text stage module
     with (
-        patch(
+        patch.dict(
             "src.classification.stages.text.TEXT_EXTRACTORS", {"pdf": mock_pdf_parser}
         ),
         patch("src.classification.stages.text._MODEL_AVAILABLE", True),
         patch(
-            "src.classification.stages.text._model.predict",
+            "src.classification.stages.text.predict",
             return_value=("invoice_model", 0.88),
         ) as mock_model_predict,
+        patch("src.classification.stages.text.logger") as mock_logger,
     ):
-
         outcome = await stage_text(mock_file)
 
+        mock_file.seek.assert_called_once_with(0)
         mock_pdf_parser.assert_called_once_with(mock_file)
         mock_model_predict.assert_called_once_with("extracted invoice text")
         assert outcome.label == "invoice_model"
         assert outcome.confidence == pytest.approx(0.88)
+        mock_logger.debug.assert_any_call(
+            "text_stage_model_prediction",
+            filename="invoice.pdf",
+            label="invoice_model",
+            confidence=0.88,
+        )
 
 
 @pytest.mark.asyncio
@@ -186,16 +177,38 @@ async def test_stage_text_model_unavailable_fallback_heuristic(
     mock_file = mock_upload_file_factory("statement.csv", b"content", "text/csv")
     mock_csv_parser = AsyncMock(return_value="bank statement keywords here")
 
+    # Patch 'predict' to raise ModelNotAvailableError
     with (
-        patch(
+        patch.dict(
             "src.classification.stages.text.TEXT_EXTRACTORS", {"csv": mock_csv_parser}
         ),
-        patch("src.classification.stages.text._MODEL_AVAILABLE", False),
-    ):  # Simulate model not available
-
+        patch(
+            "src.classification.stages.text._MODEL_AVAILABLE", True
+        ),  # Model is available
+        patch(
+            "src.classification.stages.text.predict",
+            side_effect=ModelNotAvailableError("Model not found"),
+        ) as mock_model_predict,
+        patch("src.classification.stages.text.logger") as mock_logger,
+    ):
         outcome = await stage_text(mock_file)
 
+        mock_file.seek.assert_called_once_with(0)
         mock_csv_parser.assert_called_once_with(mock_file)
+        mock_model_predict.assert_called_once_with(
+            "bank statement keywords here"
+        )  # Check predict was called
+        mock_logger.warning.assert_called_once_with(
+            "text_stage_model_not_available",
+            filename="statement.csv",
+            fallback="heuristics",
+        )
+        mock_logger.debug.assert_any_call(  # Check heuristic match logging
+            "text_stage_heuristic_match",
+            filename="statement.csv",
+            label="bank_statement",
+            confidence=0.75,
+        )
         assert outcome.label == "bank_statement"  # From heuristic
         assert outcome.confidence == pytest.approx(0.75)  # Fallback confidence
 
@@ -204,8 +217,8 @@ async def test_stage_text_model_unavailable_fallback_heuristic(
 async def test_stage_text_unsupported_extension(mock_upload_file_factory) -> None:
     """Tests text stage with an unsupported text file extension."""
     mock_file = mock_upload_file_factory("archive.zip", b"content", "application/zip")
-    # TEXT_EXTRACTORS won't have "zip"
-    with patch("src.classification.stages.text.TEXT_EXTRACTORS", {}):
+    # Ensure TEXT_EXTRACTORS doesn't have 'zip' by patching it (or ensure default doesn't)
+    with patch.dict("src.classification.stages.text.TEXT_EXTRACTORS", {}, clear=True):
         outcome = await stage_text(mock_file)
         assert outcome.label is None
         assert outcome.confidence is None
@@ -217,13 +230,12 @@ async def test_stage_text_empty_extracted_text(mock_upload_file_factory) -> None
     mock_file = mock_upload_file_factory("empty.txt", b"", "text/plain")
     mock_txt_parser = AsyncMock(return_value="  ")  # Whitespace only
 
-    with (
-        patch(
-            "src.classification.stages.text.TEXT_EXTRACTORS", {"txt": mock_txt_parser}
-        ),
-        patch("src.classification.stages.text._MODEL_AVAILABLE", False),
+    with patch.dict(
+        "src.classification.stages.text.TEXT_EXTRACTORS", {"txt": mock_txt_parser}
     ):
         outcome = await stage_text(mock_file)
+        mock_file.seek.assert_called_once_with(0)
+        mock_txt_parser.assert_called_once_with(mock_file)
         assert outcome.label is None
         assert outcome.confidence is None
 
@@ -235,23 +247,32 @@ async def test_stage_ocr_with_model(mock_upload_file_factory) -> None:
     mock_file = mock_upload_file_factory("license.png", b"img_content", "image/png")
     mock_image_parser = AsyncMock(return_value="ocr text drivers license")
 
+    # Patch the IMAGE_EXTRACTORS within the ocr stage module
+    # Patch the imported 'predict' function within the ocr stage module
     with (
-        patch(
+        patch.dict(
             "src.classification.stages.ocr.IMAGE_EXTRACTORS", {"png": mock_image_parser}
         ),
         patch("src.classification.stages.ocr._MODEL_AVAILABLE", True),
         patch(
-            "src.classification.stages.ocr._model.predict",
+            "src.classification.stages.ocr.predict",
             return_value=("drivers_licence_model", 0.91),
         ) as mock_model_predict,
+        patch("src.classification.stages.ocr.logger") as mock_logger,
     ):
-
         outcome = await stage_ocr(mock_file)
 
+        mock_file.seek.assert_called_once_with(0)
         mock_image_parser.assert_called_once_with(mock_file)
         mock_model_predict.assert_called_once_with("ocr text drivers license")
         assert outcome.label == "drivers_licence_model"
         assert outcome.confidence == pytest.approx(0.91)
+        mock_logger.debug.assert_any_call(
+            "ocr_stage_model_prediction",
+            filename="license.png",
+            label="drivers_licence_model",
+            confidence=0.91,
+        )
 
 
 @pytest.mark.asyncio
@@ -262,18 +283,40 @@ async def test_stage_ocr_model_unavailable_fallback_heuristic(
     mock_file = mock_upload_file_factory("photo_id.jpg", b"img_content", "image/jpeg")
     mock_image_parser = AsyncMock(return_value="some form application text")
 
+    # Patch 'predict' to raise ModelNotAvailableError
     with (
-        patch(
+        patch.dict(
             "src.classification.stages.ocr.IMAGE_EXTRACTORS", {"jpg": mock_image_parser}
         ),
-        patch("src.classification.stages.ocr._MODEL_AVAILABLE", False),
-    ):  # Simulate model not available
-
+        patch(
+            "src.classification.stages.ocr._MODEL_AVAILABLE", True
+        ),  # Model is available
+        patch(
+            "src.classification.stages.ocr.predict",
+            side_effect=ModelNotAvailableError("Model not found"),
+        ) as mock_model_predict,
+        patch("src.classification.stages.ocr.logger") as mock_logger,
+    ):
         outcome = await stage_ocr(mock_file)
 
+        mock_file.seek.assert_called_once_with(0)
         mock_image_parser.assert_called_once_with(mock_file)
+        mock_model_predict.assert_called_once_with(
+            "some form application text"
+        )  # Check predict was called
+        mock_logger.warning.assert_called_once_with(
+            "ocr_stage_model_not_available",
+            filename="photo_id.jpg",
+            fallback="heuristics",
+        )
+        mock_logger.debug.assert_any_call(  # Check heuristic match logging
+            "ocr_stage_heuristic_match",
+            filename="photo_id.jpg",
+            label="form",
+            confidence=0.72,
+        )
         assert outcome.label == "form"  # From heuristic
-        assert outcome.confidence == pytest.approx(0.72)  # OCR Fallback confidence
+        assert outcome.confidence == pytest.approx(0.72)  # Fallback confidence
 
 
 @pytest.mark.asyncio
@@ -282,8 +325,8 @@ async def test_stage_ocr_unsupported_extension(mock_upload_file_factory) -> None
     mock_file = mock_upload_file_factory(
         "document.pdf", b"pdf_content", "application/pdf"
     )
-    # IMAGE_EXTRACTORS won't have "pdf"
-    with patch("src.classification.stages.ocr.IMAGE_EXTRACTORS", {}):
+    # Ensure IMAGE_EXTRACTORS doesn't have 'pdf'
+    with patch.dict("src.classification.stages.ocr.IMAGE_EXTRACTORS", {}, clear=True):
         outcome = await stage_ocr(mock_file)
         assert outcome.label is None
         assert outcome.confidence is None
@@ -295,12 +338,11 @@ async def test_stage_ocr_empty_extracted_text(mock_upload_file_factory) -> None:
     mock_file = mock_upload_file_factory("blank_image.png", b"img_content", "image/png")
     mock_image_parser = AsyncMock(return_value="\n \t ")  # Whitespace only
 
-    with (
-        patch(
-            "src.classification.stages.ocr.IMAGE_EXTRACTORS", {"png": mock_image_parser}
-        ),
-        patch("src.classification.stages.ocr._MODEL_AVAILABLE", False),
+    with patch.dict(
+        "src.classification.stages.ocr.IMAGE_EXTRACTORS", {"png": mock_image_parser}
     ):
         outcome = await stage_ocr(mock_file)
+        mock_file.seek.assert_called_once_with(0)
+        mock_image_parser.assert_called_once_with(mock_file)
         assert outcome.label is None
         assert outcome.confidence is None

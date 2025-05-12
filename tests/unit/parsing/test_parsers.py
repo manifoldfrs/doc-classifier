@@ -1,20 +1,3 @@
-"""tests/unit/parsing/test_parsers.py
-###############################################################################
-Unit tests for individual file parsing adapters.
-(``src.parsing.*``)
-###############################################################################
-This module contains tests for each file parser:
-- PDF parser (pdf.py)
-- DOCX parser (docx.py)
-- CSV parser (csv.py)
-- Image (OCR) parser (image.py)
-
-Tests verify that each parser correctly processes mock UploadFile objects,
-interacts with its underlying libraries (pdfminer, docx2txt, pandas, Pillow, pytesseract)
-as expected, and returns the extracted text. Heavy I/O operations are mocked
-using `asyncio.to_thread` and the respective library calls.
-"""
-
 from __future__ import annotations
 
 from io import BytesIO

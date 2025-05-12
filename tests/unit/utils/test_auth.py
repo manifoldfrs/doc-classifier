@@ -1,12 +1,3 @@
-"""tests/unit/utils/test_auth.py
-###############################################################################
-Unit tests for the API key authentication utilities in `src.utils.auth`.
-###############################################################################
-These tests verify the `verify_api_key` dependency, ensuring it correctly
-handles valid, invalid, missing API keys, and the case where authentication
-is disabled.
-"""
-
 from __future__ import annotations
 
 from unittest.mock import MagicMock

@@ -1,44 +1,15 @@
-"""tests/integration/legacy/test_app.py
-###############################################################################
-Legacy Flask route tests – relocated from *tests/test_app.py* (Plan Step 9.1)
-###############################################################################
-These tests validate the original Flask implementation that is now exposed
-under the **/legacy** mount path of the FastAPI application.  They remain in
-place to guarantee backward-compatibility while new clients migrate to the
-FastAPI endpoints.
-
-Markers
-=======
-* ``integration`` – full-stack tests that spin up the WSGI app.
-* ``legacy`` – subset tag specific to deprecated Flask routes.
-
-Run **only** these tests via::
-
-    pytest -m "integration and legacy"
-"""
-
 from io import BytesIO
 from typing import Set
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Pytest markers applied module-wide so individual tests do not need to repeat
-# them.  Developers can still override at the function level if required.
-# ---------------------------------------------------------------------------
+from src import app as app_module
+from src.app import allowed_file, app
+
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.legacy,
 ]
-
-# ---------------------------------------------------------------------------
-# Ensure **ALLOWED_EXTENSIONS** constant in *src.app* includes the extensions
-# required by these tests.  Some unit-tests manipulate the ALLOWED_EXTENSIONS
-# environment variable, and because *src.app* evaluates this at import-time we
-# patch the module attribute directly.
-# ---------------------------------------------------------------------------
-from src import app as app_module  # noqa: E402 – imported after env safeguards
-from src.app import allowed_file, app  # noqa: E402 – import after pytestmark
 
 
 @pytest.fixture(autouse=True)

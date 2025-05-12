@@ -1,10 +1,3 @@
-"""tests/integration/api/test_jobs.py
-###############################################################################
-Integration tests for the job-related endpoints, primarily `/v1/jobs/{job_id}`.
-###############################################################################
-These tests validate fetching job status and results.
-"""
-
 from __future__ import annotations
 
 import uuid

@@ -1,12 +1,3 @@
-"""tests/integration/api/test_admin.py
-###############################################################################
-Integration tests for the administrative endpoints in `/v1/admin`
-(e.g., /v1/health, /v1/version).
-###############################################################################
-These tests validate the behavior of administrative routes, ensuring they
-return correct status codes and expected payload structures.
-"""
-
 from __future__ import annotations
 
 import pytest

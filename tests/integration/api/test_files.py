@@ -1,53 +1,17 @@
-"""tests/integration/api/test_files.py
-###############################################################################
-Integration tests for the **/v1/files** FastAPI endpoint (Implementation Plan –
-Step 9.3).
-###############################################################################
-The goal is **not** to exhaustively test the classification pipeline – that is
-covered by unit-tests in *tests/unit/*.  Here we simply validate the public
-contract exposed by the upload endpoint:
-
-1. A batch upload of *≤ ASYNC_THRESHOLD* files returns synchronous **200 OK**.
-2. The JSON payload is an **array** whose length matches the number of files
-   supplied.
-3. Every element contains the *core* keys required by the technical
-   specification so front-ends can rely on a stable schema.
-
-The test spins up an in-process TestClient so **no network** or separate server
-process is required.  This keeps the suite deterministic and avoids race
-conditions in CI.  The files are generated **in-memory** (via ``io.BytesIO``),
-thus no fixture data is read from disk which speeds up execution.
-
-Pytest Markers
-==============
-We apply the *integration* marker at module scope so developers can include or
-exclude these tests via ``-m integration``.
-"""
-
 from __future__ import annotations
 
-# stdlib
 from io import BytesIO
 from typing import List
 from unittest.mock import patch
 
-# third-party
 import pytest
 from fastapi.testclient import TestClient
 
-# local – import AFTER pytestmark so marker registration happens first
-from src.api.app import app  # noqa: E402 – needed for TestClient
+from src.api.app import app
 from src.core.config import get_settings
 from tests.conftest import MockSettings
 
-###############################################################################
-# Pytest markers – module-level so all tests inherit them automatically.
-###############################################################################
 pytestmark = [pytest.mark.integration]
-
-###############################################################################
-# Helper utilities
-###############################################################################
 
 
 def _build_multipart_payload() -> List[tuple[str, tuple[str, BytesIO, str]]]:
@@ -73,11 +37,6 @@ def _build_multipart_payload() -> List[tuple[str, tuple[str, BytesIO, str]]]:
     return [
         ("files", (name, BytesIO(content), mime)) for name, content, mime in samples
     ]
-
-
-###############################################################################
-# Tests
-###############################################################################
 
 
 def test_batch_upload_three_files_returns_expected_shape() -> None:

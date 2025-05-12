@@ -1,47 +1,16 @@
-"""tests/unit/classification/test_confidence.py
-###############################################################################
-Unit tests for ``src.classification.confidence.aggregate_confidences``
-(Implementation Plan – Step 9.2)
-###############################################################################
-The aggregator is the *decision kernel* of the pipeline, merging per-stage
-scores into a final label + confidence.  The tests verify compliance with the
-three specification clauses:
-
-1. **Early-exit** – any stage reporting ≥ ``EARLY_EXIT_CONFIDENCE`` must short
-   circuit and return its label/score.
-2. **Weighted average** – absent early-exit, the function combines confidences
-   proportionally to :data:`src.classification.confidence.STAGE_WEIGHTS`.
-3. **Thresholding** – aggregated scores below ``CONFIDENCE_THRESHOLD`` are
-   downgraded to ``"unsure"``.
-
-We construct :class:`src.classification.pipeline.StageOutcome` instances
-manually so the tests remain isolated from the full pipeline.
-"""
-
 from __future__ import annotations
 
-# third-party
 import pytest
 
-# local
 from src.classification.confidence import aggregate_confidences
 from src.classification.pipeline import StageOutcome
 from tests.conftest import MockSettings
-
-# ---------------------------------------------------------------------------
-# Test helpers
-# ---------------------------------------------------------------------------
 
 
 def _out(
     label: str | None, conf: float | None
 ) -> StageOutcome:  # noqa: D401 terse factory
     return StageOutcome(label=label, confidence=conf)
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 def test_early_exit_short_circuits() -> None:

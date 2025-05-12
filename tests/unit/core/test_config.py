@@ -1,15 +1,3 @@
-"""tests/unit/core/test_config.py
-###############################################################################
-Unit tests for the application configuration model (``src.core.config.Settings``).
-###############################################################################
-These tests verify:
-- Default values of settings.
-- Parsing of raw string environment variables into structured properties.
-- Behavior of helper methods like `is_extension_allowed`.
-- Custom Pydantic validators like `validate_confidence_thresholds`.
-- Functionality of the `get_settings` accessor.
-"""
-
 from __future__ import annotations
 
 import os

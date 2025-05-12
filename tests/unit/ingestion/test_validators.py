@@ -1,42 +1,14 @@
-"""tests/unit/ingestion/test_validators.py
-###############################################################################
-Unit tests for ``src.ingestion.validators.validate_file`` (Implementation Plan
-– Step 9.2)
-###############################################################################
-The suite exercises the *critical* validation helper that guards every FastAPI
-upload route.  We test **happy-path** acceptance plus four representative error
-scenarios, asserting that the raised :class:`fastapi.HTTPException` carries the
-expected *status_code* as mandated by the technical specification:
-
-• 400 – empty file payload
-• 413 – file exceeds configured MAX_FILE_SIZE_MB
-• 415 – unsupported extension
-• 415 – MIME-type mismatch
-
-We avoid hitting the global *Settings* singleton by passing **custom instances**
-with deterministic values so tests remain hermetic regardless of `.env` or CI
-variables.
-"""
-
 from __future__ import annotations
 
-# stdlib
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
-# third-party
 import pytest
 from fastapi import HTTPException
 from starlette.datastructures import UploadFile
 
 from src.ingestion.validators import validate_file
-
-# local
 from tests.conftest import MockSettings
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _build_upload(
@@ -63,11 +35,6 @@ def _build_upload(
     )  # For UploadFile.read if it were async
 
     return upload_file_mock
-
-
-# ---------------------------------------------------------------------------
-# Tests – organised by behaviour class
-# ---------------------------------------------------------------------------
 
 
 def test_validate_file_success_small_txt() -> None:

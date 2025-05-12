@@ -1,27 +1,12 @@
-"""tests/unit/ingestion/test_streamers.py
-###############################################################################
-Unit tests for `src.ingestion.streamers`.
-
-The test-suite validates that the asynchronous `stream_file()` helper yields
-correct chunks **without** loading the entire payload into memory at once.
-No external pytest plug-ins are required – we use `asyncio.run()` to execute
-the async generator in a synchronous context which keeps the project's
-dependency list unchanged.
-###############################################################################
-"""
-
 from __future__ import annotations
 
-# stdlib
 import asyncio
 from io import BytesIO
 from typing import List
 
-# third-party
 import pytest
 from starlette.datastructures import UploadFile
 
-# local
 from src.ingestion.streamers import DEFAULT_CHUNK_SIZE, stream_file
 
 
