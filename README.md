@@ -10,7 +10,7 @@ A production-leaning document classification micro-service built with FastAPI, c
 HeronAI is a document classification service that intelligently categorizes diverse financial documents. It processes uploads through a multi-stage pipeline:
 
 1. **Filename Analysis** → Quick heuristics based on filenames
-2. **Metadata Extraction** → PDF metadata/EXIF analysis
+2. **Metadata Extraction** → PDF metadata/EXIF analysis (currently PDF first page text)
 3. **Text Content Analysis** → TF-IDF vectorization with Naive Bayes classification
 4. **OCR Fallback** → Image-based text extraction when needed
 
@@ -21,87 +21,96 @@ The service processes files individually or in batches, providing confidence sco
 - **Rich Format Support**: Actively parses **PDF, DOCX, CSV, TXT, and images (JPG/JPEG/PNG)**. See `ALLOWED_EXTENSIONS` to configure which types are accepted for upload.
 - **Multi-stage Pipeline**: Intelligent classification with early-exit optimization
 - **Batch Processing**: Process up to 50 files in one request
-- **Async Job Support**: Background processing for larger batches
+- **Async Job Support**: Background processing for larger batches (>10 files)
 - **REST API**: Clean, versioned endpoints with OpenAPI documentation
 - **Observable**: Structured logging and Prometheus metrics
 - **Containerized**: Multi-stage Docker build for deployment flexibility
 
 ## ⚡ Quick Start (Docker Compose)
 
-```bash
-# 1. Clone & enter the repo
-git clone https://github.com/yourusername/heronai-doc-classifier.git
-cd heronai-doc-classifier
+This is the recommended way to run the service locally, as it includes all dependencies (Redis, Postgres) defined in `docker-compose.yml`.
 
-# 2. Spin-up the full stack (FastAPI + Redis + Postgres)
-docker compose up --build
+1. **Clone Repository**:
 
-# 3. Explore the live API docs
-open http://localhost:8000/docs  # or simply paste into your browser
-```
+2. **Create Environment File**: Copy the example and create your local `.env`:
 
-The container looks for a local `.env` file. If one doesn't exist yet, create it and at minimum set:
+   ```bash
+   cp .env.example .env
+   ```
 
-```ini
-ALLOWED_API_KEYS=<your_api_key>
-DEBUG=true  # optional – enables hot-reload & verbose logs
-```
+   _(Optional)_: Edit `.env` if you need to change default ports or configurations.
 
-Generate a random API key with the helper script:
+3. **Generate API Key**: Create a secret API key and add it to your `.env` file.
 
-```bash
-python scripts/generate_api_key.py --count 1
-```
+   ```bash
+   # Generate a key
+   python scripts/generate_api_key.py --count 1
+   # Copy the generated key
+   ```
 
-Copy the value into your `.env` (or export it as an environment variable) and include it in the `x-api-key` request header when calling the API.
+   Open `.env` and set `ALLOWED_API_KEYS` to the key you just copied, for example:
+   `ALLOWED_API_KEYS=your_generated_api_key_here`
+
+4. **Build and Run**: Start the services using Docker Compose.
+
+   ```bash
+   docker compose up --build
+   ```
+
+   This will build the `app` image (if it doesn't exist) and start the `app`, `redis`, and `db` containers.
+
+5. **Access API Docs**: Once the services are running, open the interactive API documentation in your browser:
+   [http://localhost:8000/docs](http://localhost:8000/docs)
+
+6. **Test API Endpoint**: Use `curl` or the API docs UI to test the `/v1/files` endpoint. Make sure to include your API key in the `x-api-key` header.
+   ```bash
+   # Replace 'your_api_key_here' with the key from your .env file
+   # Replace 'path/to/your/document.pdf' with an actual file path
+   curl -X POST \
+     "http://localhost:8000/v1/files" \
+     -H "x-api-key: your_api_key_here" \
+     -F "files=@path/to/your/document.pdf"
+   ```
 
 ## 🛠️ Prerequisites
 
 - Python 3.11+
 - Git
-- Docker & Docker Compose (optional, for containerized setup)
-- Tesseract OCR – required for the OCR fallback stage
+- Docker & Docker Compose (Recommended for easy local setup)
+- Tesseract OCR – required for the OCR fallback stage (included in Docker image)
 
-## 🚀 Getting Started
+## 🚀 Getting Started (Local Python Environment)
+
+This setup runs the FastAPI application directly on your host machine. You'll need Python 3.11 and `pip` installed.
 
 ### Local Development Setup
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/yourusername/heronai-doc-classifier.git
-cd heronai-doc-classifier
-
-# 2. Create and activate a virtual environment
+# 1. Create and activate a virtual environment
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# 3. Install dependencies
+# 2. Install dependencies
 pip install -r requirements.txt
 
-# 4. (Optional) Install pre-commit hooks
+# 3. (Optional) Install pre-commit hooks for code quality checks
 pre-commit install
 
-# 5. Create a local environment file (if you haven't already)
-cp .env.example .env  # or just touch .env and add the keys you need
-# At minimum set ALLOWED_API_KEYS and CONFIDENCE_THRESHOLD if you want to tune the model.
+# 4. Create a local environment file
+cp .env.example .env
+# Edit .env and set ALLOWED_API_KEYS (see Docker steps above)
 
-# 🔑 Generate a random API key (optional convenience helper)
-python scripts/generate_api_key.py --count 1 >> .env  # appends ALLOWED_API_KEYS=<key>
+# 5. Ensure Tesseract OCR is installed locally if not using Docker
+#    (Installation instructions vary by OS: https://tesseract-ocr.github.io/tessdoc/Installation.html)
 
-# 6. Run the application with hot-reload
+# 6. (One-time) Train the classification model
+python scripts/train_model.py
+
+# 7. Run the application with hot-reload
 uvicorn src.api.app:app --reload
 ```
 
-### Docker Setup
-
-```bash
-# Build and start the complete stack (App + Redis + Postgres)
-docker compose up --build
-
-# Alternatively, just build the application image
-docker build -t heronai:latest .
-docker run -p 8000:8000 heronai:latest
-```
+The application will be available at `http://localhost:8000`.
 
 ## 📖 Usage
 
@@ -112,7 +121,7 @@ docker run -p 8000:8000 heronai:latest
 - `GET /v1/health`: Health check endpoint
 - `GET /v1/version`: Version information
 - `GET /metrics`: Prometheus metrics (when enabled)
-- `GET /docs`: OpenAPI documentation
+- `GET /docs`: OpenAPI documentation (Swagger UI)
 
 ### Example: Classifying Files
 
@@ -132,7 +141,7 @@ curl -X POST \
   -F "files=@path/to/file3.docx"
 ```
 
-### Example Response
+### Example Response (Single File)
 
 ```json
 [
@@ -148,8 +157,8 @@ curl -X POST \
       "stage_text": 0.92,
       "stage_ocr": null
     },
-    "pipeline_version": "v1.0.0",
-    "processing_ms": 137,
+    "pipeline_version": "v0.1.0",
+    "processing_ms": 137.45,
     "request_id": "218c2c4d-d8a4-4a27-a6b8-d20fb0afa7bd",
     "warnings": [],
     "errors": []
@@ -159,94 +168,102 @@ curl -X POST \
 
 ## 🏗️ Architecture
 
-```
-                                                   ┌─────────────────┐
-                                                   │  FastAPI Layer  │
-                                                   │  - API Routes   │
-                                                   │  - Validation   │
-                                                   │  - Auth (API Key)│
-                                                   └───────┬─────────┘
-                                                           │
-                                                           ▼
-┌─────────────────┐         ┌─────────────────┐    ┌──────────────────┐
-│     Parsing     │◄────────│  Classification  │◄───│    Ingestion     │
-│  - PDF (pdfminer)│         │    Pipeline     │    │   - Validation   │
-│  - DOCX (docx2txt)│        │  - Filename     │    │   - Streaming    │
-│  - CSV (pandas)  │────────►│  - Metadata     │    │   - MIME Check   │
-│  - OCR (tesseract)│        │  - Text         │    └──────────────────┘
-└─────────────────┘         │  - OCR          │
-                            └────────┬────────┘
-                                     │
-                     ┌───────────────┴───────────────┐
-                     ▼                               ▼
-          ┌───────────────────┐            ┌──────────────────┐
-          │ Sync Response     │            │ Async Jobs       │
-          │ (Small Batches)   │            │ (Large Batches)  │
-          └───────────────────┘            └──────────────────┘
+![HeronAI Document Classification System Diagram](@heron_project_diagram.png)
+
+```mermaid
+graph TD
+    A[Client Request POST /v1/files] --> B{FastAPI App};
+    B -- Validate Request --> C[Ingestion Module];
+    C -- Validate Files (Size, Type) --> D{Validation OK?};
+    D -- Yes --> E[Classification Pipeline];
+    D -- No --> F[Return HTTP Error 4xx];
+    E -- Run Stages --> G[Filename Stage];
+    G --> H[Metadata Stage PDFs];
+    H --> I[Text Stage Extract + Classify/Heuristic];
+    I -- Need OCR? --> J[OCR Stage Extract + Classify/Heuristic];
+    J --> K[Aggregate Confidences];
+    I -- No OCR --> K;
+    K --> L[Format ClassificationResult];
+    L -- Batch > 10? --> M{Async Job};
+    L -- Batch <= 10 --> N[Return Sync Response 200 OK];
+    M -- Create Job ID --> O[Return Async Response 202 Accepted];
+    P[Client Request GET /v1/jobs/id] --> B;
+    B -- Check Job Status --> Q{Job Registry In-Memory};
+    Q -- Job Done --> R[Return Job Results 200 OK];
+    Q -- Job Pending --> S[Return Job Status 200 OK];
+
+    subgraph Parsing Adapters
+        PA[PDF]
+        PB[DOCX]
+        PC[CSV]
+        PD[TXT]
+        PE[Image]
+    end
+
+    subgraph Classification Stages
+        G; H; I; J; K;
+    end
+
+    I --> PA; I --> PB; I --> PC; I --> PD;
+    J --> PE;
 ```
 
 ## 📊 Environment Variables
 
-| Variable                | Default                    | Description                                             |
-| ----------------------- | -------------------------- | ------------------------------------------------------- |
-| `DEBUG`                 | `false`                    | Enable verbose logging & hot-reload                     |
-| `ALLOWED_API_KEYS`      | `""`                       | Comma-separated static API keys                         |
-| `ALLOWED_EXTENSIONS`    | `pdf,docx,csv,txt,jpg,...` | Comma-separated **accepted** file extensions for upload |
-| `MAX_FILE_SIZE_MB`      | `10`                       | Maximum file size in MB                                 |
-| `MAX_BATCH_SIZE`        | `50`                       | Maximum number of files per batch request               |
-| `CONFIDENCE_THRESHOLD`  | `0.65`                     | Minimum confidence score to assign a label              |
-| `EARLY_EXIT_CONFIDENCE` | `0.95`                     | Score threshold for pipeline early-exit                 |
-| `PROMETHEUS_ENABLED`    | `true`                     | Toggle Prometheus metrics endpoint                      |
-| `PIPELINE_VERSION`      | `v0.1.0`                   | Semantic version embedded in API responses              |
+| Variable                | Default                    | Description                                                 |
+| ----------------------- | -------------------------- | ----------------------------------------------------------- |
+| `DEBUG`                 | `false`                    | Enable verbose logging & FastAPI/Uvicorn hot-reload         |
+| `ALLOWED_API_KEYS`      | `""`                       | Comma-separated static API keys (empty disables auth)       |
+| `ALLOWED_EXTENSIONS`    | `pdf,docx,csv,txt,jpg,...` | Comma-separated **accepted** file extensions for upload     |
+| `MAX_FILE_SIZE_MB`      | `10`                       | Maximum size per file in Megabytes                          |
+| `MAX_BATCH_SIZE`        | `50`                       | Maximum number of files per batch request                   |
+| `CONFIDENCE_THRESHOLD`  | `0.65`                     | Minimum confidence score to assign a label (else "unsure")  |
+| `EARLY_EXIT_CONFIDENCE` | `0.95`                     | Score threshold for filename/metadata stages to skip others |
+| `PROMETHEUS_ENABLED`    | `true`                     | Toggle `/metrics` endpoint (requires Prometheus libs)       |
+| `PIPELINE_VERSION`      | `v0.1.0`                   | Semantic version embedded in API responses                  |
+| `COMMIT_SHA`            | `None`                     | Git commit SHA (often set via CI/CD for tracking)           |
 
 ## 🧪 Testing
 
 ```bash
 # Run linting, type checking, and tests (with coverage)
-./scripts/lint.sh && mypy --strict src && pytest
+./scripts/lint.sh && pytest
 
-# Run only unit tests
-pytest -m unit
+# Run only tests
+python -m pytest -q
 
-# Run only integration tests
-pytest -m integration
-
-# Run tests with coverage report
-pytest --cov=src
+# Run tests with coverage report (HTML + XML for CI)
+python -m pytest --cov=src --cov-report=html --cov-report=xml
 ```
 
-## 🔍 Hotkeys
-
-This project supports the following hotkeys for exploring specific aspects:
-
-- **J** – Request deeper dive into the classification pipeline implementation
-- **K** – Ask for Terraform infrastructure specification
-- **L** – Open discussion on UI scope and frontend implementation
+Coverage reports are written to `htmlcov/` and `coverage.xml`. The CI pipeline enforces a minimum coverage threshold (see `pytest.ini`).
 
 ## 📁 Project Structure
 
 ```
+files/            # Synthetic data files
 src/
-  api/            # FastAPI app & routers
-  ingestion/      # file validation & streaming
-  parsing/        # pdf.py, docx.py, csv.py, image.py
-  classification/ # pipeline, stages, model, confidence
-  core/           # config, logging, exceptions
-  utils/          # auth, timers, helpers
-scripts/          # train_model.py, generate_synthetic.py
-tests/            # unit/, integration/, data/
+  api/            # FastAPI app, routers, schemas
+  ingestion/      # File validation & streaming helpers
+  parsing/        # Adapters for PDF, DOCX, CSV, TXT, Images (OCR)
+  classification/ # Pipeline orchestrator, stages, ML model wrapper, confidence logic
+  core/           # Core components: config, logging, shared exceptions
+  utils/          # Utility functions: auth helpers, etc.
+scripts/          # Helper scripts: model training, data generation, testing
+tests/            # Unit and integration tests
 ```
 
 ## 🔒 Security & Auth
 
-API authentication is handled via the `x-api-key` header, validated against the `ALLOWED_API_KEYS` environment variable. When this variable is empty, authentication is disabled (useful for development).
+API authentication is handled via the `x-api-key` header, validated against the `ALLOWED_API_KEYS` environment variable (comma-separated list). If `ALLOWED_API_KEYS` is empty or not set, authentication is **disabled**.
 
 ## 📚 Additional Documentation
 
 For more details, see:
 
-- [Limitations & Future Work](docs/limitations.md)
-- [Frontend Setup Guide](docs/frontend_setup.md)
+- [Limitations & Future Work](docs/limitations.md): Discusses current constraints and potential improvements.
+- [Frontend Setup Guide](docs/frontend_setup.md): Outlines how to build a React/TypeScript UI.
+- [API Docs](http://localhost:8000/docs): Live Swagger UI documentation (when running).
 
 ## 📄 License
 
