@@ -1,7 +1,6 @@
-"""src/classification/confidence.py
-###############################################################################
+"""
 Decision kernel for combining stage confidence scores
-###############################################################################
+
 This module implements the "aggregator" - the decision-making kernel of the
 classification pipeline that combines the individual stage confidence scores
 into a final classification with confidence.
@@ -33,11 +32,12 @@ from typing import Any, Dict, Tuple
 from src.core.config import Settings
 
 # Stage weights - determine how much each stage contributes to final decision
+# Further increased filename weight, further decreased text/ocr weights.
 STAGE_WEIGHTS: Dict[str, float] = {
-    "stage_filename": 0.15,
-    "stage_metadata": 0.25,
-    "stage_text": 0.35,
-    "stage_ocr": 0.25,
+    "stage_filename": 0.40,  # Increased from 0.30
+    "stage_metadata": 0.20,  # Decreased from 0.25
+    "stage_text": 0.20,  # Decreased from 0.25
+    "stage_ocr": 0.20,  # Kept at 0.20
 }
 
 
@@ -68,9 +68,14 @@ def aggregate_confidences(
     # Check for early exit - any stage with very high confidence
     early_exit_candidates = []
     for _, outcome in outcomes.items():
-        if outcome.label and outcome.confidence is not None:
-            if outcome.confidence >= settings.early_exit_confidence:
-                early_exit_candidates.append((outcome.label, outcome.confidence))
+        # Ensure outcome and confidence are not None before comparison
+        if (
+            outcome
+            and outcome.label
+            and outcome.confidence is not None
+            and outcome.confidence >= settings.early_exit_confidence
+        ):
+            early_exit_candidates.append((outcome.label, outcome.confidence))
 
     if early_exit_candidates:
         # Take the one with highest confidence
@@ -82,31 +87,41 @@ def aggregate_confidences(
     label_weights: Dict[str, float] = {}
 
     for stage_name, outcome in outcomes.items():
-        if not outcome.label or outcome.confidence is None:
+        # Skip if outcome is missing, has no label, or no confidence
+        if not outcome or not outcome.label or outcome.confidence is None:
             continue
 
-        weight = STAGE_WEIGHTS.get(stage_name, 1.0)
+        weight = STAGE_WEIGHTS.get(
+            stage_name, 1.0
+        )  # Default weight 1.0 for unknown stages
         weighted_score = outcome.confidence * weight
 
-        if outcome.label not in label_scores:
-            label_scores[outcome.label] = 0.0
-            label_weights[outcome.label] = 0.0
+        # Initialize if label seen for the first time
+        label_scores.setdefault(outcome.label, 0.0)
+        label_weights.setdefault(outcome.label, 0.0)
 
         label_scores[outcome.label] += weighted_score
         label_weights[outcome.label] += weight
 
-    # No valid scores found
+    # No valid scores found across all stages
     if not label_scores:
         return "unknown", 0.0
 
     # Find label with highest total weighted score
-    best_label = max(label_scores.items(), key=lambda x: x[1])[0]
+    best_label = max(label_scores.items(), key=lambda item: item[1], default=(None, 0))[
+        0
+    ]
 
-    # Calculate average confidence for the winning label
+    # If max returned the default (None), or if the best_label has zero total weight (e.g. all its stages had zero weight)
+    if best_label is None or label_weights.get(best_label, 0.0) == 0.0:
+        return "unknown", 0.0
+
+    # Confidence is the total weighted score for that label divided by the total weight applied to that label
     confidence = label_scores[best_label] / label_weights[best_label]
 
     # Return "unsure" if confidence is below threshold
     if confidence < settings.confidence_threshold:
         return "unsure", confidence
 
+    # Return the best label and its calculated confidence
     return best_label, confidence
