@@ -53,7 +53,7 @@ This document outlines the current limitations of the HeronAI document classific
 
 ### Feature Completeness
 
-1. **Limited File Types**: While the service handles common formats, specialized formats (CAD files, specific industry formats) aren't supported.
+1. **Limited File Types**: The service currently supports text extraction for **PDF, DOCX, CSV, and raster images (JPG/JPEG/PNG)** only. Other extensions that are accepted at upload-validation time via the default `ALLOWED_EXTENSIONS` setting — `doc`, `xls`, `xlsx`, `xlsb`, `txt`, `md`, `xml`, `json`, `html`, and `eml` — do **not** yet have extractor modules, so they fall back to an empty-text path and usually yield low-confidence classifications. Niche or industry-specific formats (e.g. CAD drawings) likewise remain unsupported.
 
 2. **No Content Extraction**: The classifier identifies document types but doesn't extract structured data fields (e.g., invoice amounts, bank statement transactions).
 
