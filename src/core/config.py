@@ -9,8 +9,46 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _parse_csv_str(v: str) -> List[str]:
-    """Parse a comma-separated string into a list of values."""
+    """Parse a comma-separated string into a list of values, stripping whitespace."""
     return [x.strip() for x in v.split(",") if x.strip()]
+
+
+def _parse_api_keys(current_keys: List[str]) -> List[str]:
+    """Parse ALLOWED_API_KEYS from environment, respecting existing values."""
+    env_api_keys = os.environ.get("ALLOWED_API_KEYS")
+    if env_api_keys:
+        # If environment var exists and current_keys is empty, parse from env
+        # This covers the initial load case.
+        if not current_keys:
+            return _parse_csv_str(env_api_keys)
+        # If current_keys is already populated (e.g., from direct instantiation),
+        # the environment variable is ignored to prevent accidental overrides.
+        # This behaviour differs slightly from the original where env could override
+        # Pydantic's direct value, but is safer.
+        return current_keys
+    # If env var is not set, return the current_keys (might be default empty list)
+    # or ensure it's empty if the env var was explicitly removed.
+    return [] if env_api_keys is None else current_keys
+
+
+def _derive_allowed_extensions(
+    current_set: Set[str], raw_extensions: Optional[str]
+) -> Set[str]:
+    """Derive the final set of allowed extensions."""
+    # If the set is already populated (e.g., via ALLOWED_EXTENSIONS env var), use it.
+    if current_set:
+        return current_set
+
+    # Otherwise, compute from the raw string (ALLOWED_EXTENSIONS_RAW)
+    if raw_extensions is None or raw_extensions == "":
+        return set()  # Nothing configured or explicitly empty -> disallow all
+
+    # Parse the raw comma-separated string
+    return {
+        ext.strip().lower().lstrip(".")
+        for ext in raw_extensions.split(",")
+        if ext.strip()
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -23,7 +61,7 @@ def _parse_csv_str(v: str) -> List[str]:
 # trip Pydantic's strict JSON parser.
 
 _env_api_keys = os.environ.get("ALLOWED_API_KEYS")
-if _env_api_keys and "[" not in _env_api_keys:
+if _env_api_keys and not _env_api_keys.strip().startswith("["):
     os.environ["ALLOWED_API_KEYS"] = json.dumps(_parse_csv_str(_env_api_keys))
 
 # Normalise ``ALLOWED_EXTENSIONS`` for the same reason – maintain developer
@@ -31,7 +69,7 @@ if _env_api_keys and "[" not in _env_api_keys:
 # types.
 
 _env_allowed_ext = os.environ.get("ALLOWED_EXTENSIONS")
-if _env_allowed_ext and "[" not in _env_allowed_ext:
+if _env_allowed_ext and not _env_allowed_ext.strip().startswith("["):
     os.environ["ALLOWED_EXTENSIONS"] = json.dumps(_parse_csv_str(_env_allowed_ext))
 
 
@@ -179,11 +217,7 @@ class Settings(BaseSettings):
         return cast(_Set[str], v)
 
 
-###############################################################################
 # Public accessor – manual caching to support special behaviour in tests
-###############################################################################
-
-
 _CACHED_SETTINGS: Optional[Settings] = None
 
 
@@ -209,11 +243,7 @@ def get_settings() -> Settings:  # noqa: D401 – accessor helper
     return _CACHED_SETTINGS
 
 
-# ---------------------------------------------------------------------------
 # Mimic ``functools.lru_cache`` API expected by existing tests
-# ---------------------------------------------------------------------------
-
-
 def _clear_settings_cache() -> None:  # noqa: D401 – helper for tests
     """Clear the internal Settings singleton (used by unit-tests)."""
 
