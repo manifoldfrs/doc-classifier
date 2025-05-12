@@ -26,6 +26,8 @@ from typing import Dict, Pattern, Tuple
 import structlog
 from pdfminer.high_level import extract_text
 from pdfminer.pdfdocument import PDFTextExtractionNotAllowed
+from pdfminer.pdfparser import PDFSyntaxError
+from pdfminer.pdftypes import PDFException
 from pdfminer.psparser import PSException
 from starlette.datastructures import UploadFile
 
@@ -81,13 +83,17 @@ async def _extract_pdf_metadata(content: bytes) -> str:
         try:
             # Use pdfminer to extract first page text as metadata proxy
             return extract_text(pdf_buffer, page_numbers=[0], maxpages=1) or ""
-        except (PDFTextExtractionNotAllowed, PSException) as e:
-            logger.warning("pdf_metadata_extraction_denied", error=str(e))
+        except PDFTextExtractionNotAllowed:
+            logger.warning("pdf_metadata_extraction_denied")
             return ""
-        except Exception as e:
-            # Catch broader exceptions during parsing
-            logger.error("pdf_metadata_extraction_failed", error=str(e), exc_info=True)
+        except (PDFSyntaxError, PSException, PDFException) as e:
+            logger.warning(
+                "pdf_metadata_extraction_failed_pdfminer",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             return ""
+        # Removed broad `except Exception` - let unexpected errors propagate.
 
     # Run the synchronous pdfminer code in a separate thread
     return await asyncio.to_thread(_worker)
@@ -117,7 +123,14 @@ async def stage_metadata(file: UploadFile) -> StageOutcome:
         content = await file.read()
         metadata_proxy = await _extract_pdf_metadata(content)
     except Exception as e:
-        logger.error("metadata_stage_read_error", filename=file.filename, error=str(e))
+        # Catch potential errors during file read/seek or the _extract_pdf_metadata call
+        # This includes errors propagated from the _worker if they were not pdfminer-specific
+        logger.error(
+            "metadata_stage_processing_error",
+            filename=file.filename,
+            error=str(e),
+            exc_info=True,  # Include traceback for unexpected errors
+        )
         return StageOutcome(label=None, confidence=None)
 
     if not metadata_proxy or not metadata_proxy.strip():
