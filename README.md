@@ -26,12 +26,41 @@ The service processes files individually or in batches, providing confidence sco
 - **Observable**: Structured logging and Prometheus metrics
 - **Containerized**: Multi-stage Docker build for deployment flexibility
 
+## ⚡ Quick Start (Docker Compose)
+
+```bash
+# 1. Clone & enter the repo
+git clone https://github.com/yourusername/heronai-doc-classifier.git
+cd heronai-doc-classifier
+
+# 2. Spin-up the full stack (FastAPI + Redis + Postgres)
+docker compose up --build
+
+# 3. Explore the live API docs
+open http://localhost:8000/docs  # or simply paste into your browser
+```
+
+The container looks for a local `.env` file. If one doesn't exist yet, create it and at minimum set:
+
+```ini
+ALLOWED_API_KEYS=<your_api_key>
+DEBUG=true  # optional – enables hot-reload & verbose logs
+```
+
+Generate a random API key with the helper script:
+
+```bash
+python scripts/generate_api_key.py --count 1
+```
+
+Copy the value into your `.env` (or export it as an environment variable) and include it in the `x-api-key` request header when calling the API.
+
 ## 🛠️ Prerequisites
 
 - Python 3.11+
 - Git
 - Docker & Docker Compose (optional, for containerized setup)
-- Tesseract OCR (for OCR functionality)
+- Tesseract OCR – required for the OCR fallback stage
 
 ## 🚀 Getting Started
 
@@ -52,9 +81,12 @@ pip install -r requirements.txt
 # 4. (Optional) Install pre-commit hooks
 pre-commit install
 
-# 5. Copy environment configuration template
-cp .env.example .env
-# Customize .env values as needed
+# 5. Create a local environment file (if you haven't already)
+cp .env.example .env  # or just touch .env and add the keys you need
+# At minimum set ALLOWED_API_KEYS and CONFIDENCE_THRESHOLD if you want to tune the model.
+
+# 🔑 Generate a random API key (optional convenience helper)
+python scripts/generate_api_key.py --count 1 >> .env  # appends ALLOWED_API_KEYS=<key>
 
 # 6. Run the application with hot-reload
 uvicorn src.api.app:app --reload
@@ -165,6 +197,7 @@ curl -X POST \
 | `CONFIDENCE_THRESHOLD`  | `0.65`                 | Minimum confidence score to assign a label |
 | `EARLY_EXIT_CONFIDENCE` | `0.9`                  | Score threshold for pipeline early-exit    |
 | `PROMETHEUS_ENABLED`    | `true`                 | Toggle Prometheus metrics endpoint         |
+| `PIPELINE_VERSION`      | `v0.1.0`               | Semantic version embedded in API responses |
 
 ## 🧪 Testing
 
