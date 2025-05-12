@@ -61,11 +61,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000
 
 # System packages required **at runtime**
-# • tesseract-ocr + libtesseract-dev → OCR stage
+# • tesseract-ocr                     → OCR stage
 # • libgl1 + libglib2.0-0           → Pillow/OpenCV backend symbols
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        tesseract-ocr libtesseract-dev libgl1 libglib2.0-0 \
+        tesseract-ocr libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy wheels/site-packages produced in *builder* stage

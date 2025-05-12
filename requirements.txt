@@ -1,54 +1,114 @@
-# -----------------------------------------------------------------------------
 # Runtime ─ Web & Core
-# -----------------------------------------------------------------------------
-fastapi
-flask
-uvicorn[standard]
+fastapi==0.115.12
+flask==3.1.0
+uvicorn[standard]==0.34.2
+# uvicorn's [standard] extras typically include:
+# httptools, uvloop, websockets, watchfiles
+httptools==0.6.4
+uvloop==0.21.0
+websockets==15.0.1
+watchfiles==1.0.5
 
-# -----------------------------------------------------------------------------
 # Config & Validation
-# -----------------------------------------------------------------------------
-python-dotenv
-pydantic
-pydantic-settings==2.8.0
-python-multipart
+python-dotenv==1.1.0
+pydantic==2.11.4
+pydantic-settings==2.9.1
+python-multipart==0.0.20
+annotated-types==0.7.0 # pydantic dependency
+pydantic_core==2.33.2 # pydantic dependency
 
-# -----------------------------------------------------------------------------
 # Parsing & ML
-# -----------------------------------------------------------------------------
-pdfminer.six
-docx2txt
-pandas
-scikit-learn
-pytesseract
-Pillow
+pdfminer.six==20250506
+docx2txt==0.9
+pandas==2.2.3
+scikit-learn==1.6.1
+pytesseract==0.3.13
+Pillow==11.2.1
+# scikit-learn dependencies
+numpy==2.2.5
+scipy==1.15.3
+joblib==1.5.0
+threadpoolctl==3.6.0
+# pandas dependencies
+python-dateutil==2.9.0.post0
+pytz==2025.2
+tzdata==2025.2
 
-# -----------------------------------------------------------------------------
 # Logging & Observability
-# -----------------------------------------------------------------------------
-structlog
-python-json-logger
-prometheus-fastapi-instrumentator
-PyYAML
+structlog==25.3.0
+python-json-logger==3.3.0
+prometheus-fastapi-instrumentator==7.1.0
+PyYAML==6.0.2
+# prometheus_fastapi_instrumentator dependency
+prometheus_client==0.21.1
 
-# -----------------------------------------------------------------------------
 # Development / Tooling
-# -----------------------------------------------------------------------------
-black
-ruff
-mypy
-pre-commit
-isort
-requests
-types-Flask==1.1.6
+black==25.1.0
+ruff==0.11.9
+mypy==1.15.0
+pre-commit==4.2.0
+isort==6.0.1 # ruff now handles import sorting, but listed if used separately
+requests==2.32.3
+types-Flask==1.1.6 # This was previously pinned, maintaining for now
+# black dependencies
+click==8.1.8
+mypy_extensions==1.1.0 # also mypy dependency
+pathspec==0.12.1
+# pre-commit dependencies
+cfgv==3.4.0
+identify==2.6.10
+nodeenv==1.9.1
+virtualenv==20.31.2
+# virtualenv dependencies
+distlib==0.3.9
+filelock==3.18.0
+platformdirs==4.3.8
+# mypy dependencies
+typing-inspection==0.4.0
+# requests dependencies
+certifi==2025.4.26
+charset-normalizer==3.4.2
+idna==3.10
+urllib3==2.4.0
+# Werkzeug is a Flask dependency
+Werkzeug==3.1.3
+# Jinja2 is a Flask dependency
+Jinja2==3.1.6
+# itsdangerous is a Flask dependency
+itsdangerous==2.2.0
+# blinker is a Flask dependency
+blinker==1.9.0
+# Starlette is a FastAPI dependency
+starlette==0.46.2
+# anyio is a Starlette/FastAPI dependency
+anyio==4.9.0
+# sniffio is an anyio dependency
+sniffio==1.3.1
+# h11 is an httpcore dependency, which is an httpx dependency
+h11==0.16.0
+# httpcore is an httpx dependency
+httpcore==1.0.9
+# six is a general utility library often a dependency
+six==1.17.0
+# cryptography is a pdfminer.six dependency
+cryptography==44.0.3
+# cffi is a cryptography dependency
+cffi==1.17.1
+# pycparser is a cffi dependency
+pycparser==2.22
+# packaging can be a dependency for various tools
+packaging==25.0
 
-# -----------------------------------------------------------------------------
 # Testing
-# -----------------------------------------------------------------------------
-pytest
-pytest-asyncio
-pytest-cov
-pytest-mock
-faker
-coverage
-httpx
+pytest==8.3.5
+pytest-asyncio==0.26.0
+pytest-cov==6.1.1
+pytest-mock==3.14.0
+faker==37.1.0
+coverage==7.8.0
+httpx==0.28.1
+# pytest dependencies
+iniconfig==2.1.0
+pluggy==1.5.0
+# typing_extensions is used by many libraries like pydantic, fastapi
+typing_extensions==4.13.2
