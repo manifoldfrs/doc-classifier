@@ -1,7 +1,32 @@
+"""
+Classification Pipeline Orchestrator
+
+This module defines the main classification pipeline for the HeronAI service.
+It orchestrates the execution of various classification stages (filename,
+metadata, text content, OCR) sequentially on an uploaded file. The pipeline
+combines the outcomes from each stage using a confidence aggregation strategy
+to produce a final classification label and score.
+
+Key Responsibilities:
+- Define the sequence of classification stages.
+- Execute each stage on the input file.
+- Aggregate stage outcomes into a final ClassificationResult.
+- Handle errors during stage execution gracefully.
+- Measure and report processing time.
+
+Dependencies:
+- `src.classification.stages`: Provides individual stage implementations.
+- `src.classification.types`: Defines data structures for stage outcomes and final results.
+- `src.classification.confidence`: Implements the logic for aggregating stage confidences.
+- `src.core.config`: Provides application settings (thresholds, version).
+- `structlog`: Used for structured logging throughout the pipeline execution.
+
+"""
+
 from __future__ import annotations
 
 import time
-from typing import Awaitable, Callable, Dict
+from typing import Awaitable, Callable, Dict, List
 
 import structlog
 from starlette.datastructures import UploadFile
@@ -17,7 +42,9 @@ from src.core.config import get_settings
 
 logger = structlog.get_logger(__name__)
 
-STAGE_REGISTRY: list[Callable[[UploadFile], Awaitable["StageOutcome"]]] = [
+# Define the sequence of stages to be executed in the pipeline.
+# Stages are imported directly for clarity and explicit control over the pipeline flow.
+STAGE_REGISTRY: List[Callable[[UploadFile], Awaitable["StageOutcome"]]] = [
     stage_filename,
     stage_metadata,
     stage_text,
@@ -27,38 +54,48 @@ STAGE_REGISTRY: list[Callable[[UploadFile], Awaitable["StageOutcome"]]] = [
 
 def _get_file_size(file: UploadFile) -> int:
     """
-    Get the size of an uploaded file in bytes safely.
+    Safely determine the size of an uploaded file in bytes.
+
+    This helper function attempts to read the file size by seeking to the end.
+    It handles potential exceptions and resets the file pointer.
 
     Args:
-        file: The uploaded file
+        file: The uploaded file object.
 
     Returns:
-        Size in bytes, or 0 if unable to determine.
+        The size of the file in bytes, or 0 if the size cannot be determined.
     """
     try:
         current_pos = file.file.tell()
-        file.file.seek(0, 2)  # Seek to end
+        file.file.seek(0, 2)  # Seek to the end of the file
         size = file.file.tell()
-        file.file.seek(current_pos)  # Reset position
+        file.file.seek(current_pos)  # Reset file pointer to original position
         return size
     except Exception as e:
-        logger.error("get_file_size_error", filename=file.filename, error=str(e))
-        return 0
+        logger.error(
+            "get_file_size_error", filename=file.filename, error=str(e), exc_info=True
+        )
+        return 0  # Return 0 if size check fails
 
 
 async def _execute_stages(file: UploadFile) -> Dict[str, StageOutcome]:
     """
     Execute all registered classification stages sequentially on a file.
 
+    Iterates through the `STAGE_REGISTRY`, calling each stage function.
+    Ensures the file pointer is reset before each stage execution.
+    Logs outcomes and errors for each stage.
+
     Args:
-        file: The uploaded file to classify
+        file: The uploaded file to classify.
 
     Returns:
-        Dictionary mapping stage function names to their StageOutcome.
+        A dictionary mapping stage function names to their respective `StageOutcome`.
+        If a stage fails, its outcome will be recorded as (None, None).
     """
-    results = {}
+    results: Dict[str, StageOutcome] = {}
     for stage_func in STAGE_REGISTRY:
-        stage_name = stage_func.__name__  # Use function name as key
+        stage_name = stage_func.__name__  # Use the function's name as the identifier
         try:
             # Ensure file pointer is at the beginning for each stage
             await file.seek(0)
@@ -77,40 +114,47 @@ async def _execute_stages(file: UploadFile) -> Dict[str, StageOutcome]:
                 stage=stage_name,
                 filename=file.filename,
                 error=str(e),
-                exc_info=True,
+                exc_info=True,  # Include traceback in logs
             )
-            # Record error but continue to next stage if possible
+            # Record the failure but allow the pipeline to continue
             results[stage_name] = StageOutcome(label=None, confidence=None)
     return results
 
 
 async def classify(file: UploadFile) -> ClassificationResult:
     """
-    Classify a document by running it through all registered classification stages.
+    Classify a document by running it through the defined pipeline stages.
+
+    This is the main entry point for classifying a single uploaded file. It
+    handles the entire process from executing stages to aggregating results
+    and formatting the final output.
 
     Args:
-        file: The uploaded file to classify
+        file: The uploaded file object (`starlette.datastructures.UploadFile`).
 
     Returns:
-        ClassificationResult containing the final label, confidence, and details.
+        A `ClassificationResult` object containing the final classification
+        label, confidence score, stage-specific confidences, processing time,
+        and other relevant metadata.
     """
     start_time = time.perf_counter()
     settings = get_settings()
 
+    # Basic file metadata extraction
     filename = file.filename or "<unknown>"
     mime_type = file.content_type or "application/octet-stream"
     size_bytes = _get_file_size(file)
 
-    # Execute all stages
+    # Execute all defined stages
     stage_outcomes = await _execute_stages(file)
 
-    # Extract confidences for the final result payload
+    # Prepare stage confidences for the final result payload
     stage_confidences = {
         stage_name: outcome.confidence for stage_name, outcome in stage_outcomes.items()
     }
 
-    # Aggregate results from all stages
-    # Import here to avoid potential early import issues if confidence depends on types
+    # Aggregate results from all stages using the confidence module
+    # Imported here to avoid potential circular dependency issues during startup
     from src.classification.confidence import aggregate_confidences
 
     label, confidence = aggregate_confidences(stage_outcomes, settings=settings)
@@ -118,20 +162,22 @@ async def classify(file: UploadFile) -> ClassificationResult:
     end_time = time.perf_counter()
     processing_ms = (end_time - start_time) * 1000
 
-    # Create the final result object
+    # Construct the final result object
     result = ClassificationResult(
         filename=filename,
         mime_type=mime_type,
         size_bytes=size_bytes,
         label=label,
-        confidence=round(confidence, 4),  # Round confidence for consistency
+        confidence=round(confidence, 4),  # Round confidence for consistent output
         stage_confidences=stage_confidences,
         pipeline_version=settings.pipeline_version,
         processing_ms=round(processing_ms, 2),
-        # warnings/errors could be populated by stages if needed later
+        # Warnings and errors could potentially be populated by stages in future extensions
+        warnings=[],
+        errors=[],
     )
 
-    # Log the final outcome
+    # Log the final outcome of the classification process
     logger.info(
         "classification_complete",
         filename=result.filename,
@@ -139,7 +185,7 @@ async def classify(file: UploadFile) -> ClassificationResult:
         confidence=result.confidence,
         processing_ms=result.processing_ms,
         pipeline_version=result.pipeline_version,
-        # Log individual stage results for debugging
+        # Log individual stage outcomes (label, confidence) for detailed debugging
         stage_outcomes={
             name: (outcome.label, outcome.confidence)
             for name, outcome in stage_outcomes.items()
