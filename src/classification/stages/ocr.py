@@ -1,5 +1,6 @@
 """
 Stage 4: OCR-based document classification
+
 This module implements the OCR stage in the classification pipeline.
 It performs optical character recognition on images to extract text
 for classification.
@@ -8,15 +9,18 @@ for classification.
 from __future__ import annotations
 
 import re
-from typing import Optional, Tuple
 
+import structlog
 from starlette.datastructures import UploadFile
 
-from src.classification.pipeline import StageOutcome
+from src.classification.model import ModelNotAvailableError, predict
+from src.classification.types import StageOutcome
 from src.parsing.image import extract_text_from_image
 
+logger = structlog.get_logger(__name__)
+
 # Flag indicating whether ML model is available
-_MODEL_AVAILABLE = False  # Set to True when ML model is implemented
+_MODEL_AVAILABLE = True
 
 # Mapping of file extensions to image extractors
 IMAGE_EXTRACTORS = {
@@ -41,26 +45,6 @@ _HEURISTIC_PATTERNS = {
 }
 
 
-class _MockModel:
-    """Mock ML model for OCR text classification until real model is implemented."""
-
-    def predict(self, text: str) -> Tuple[Optional[str], float]:
-        """Predict document type from OCR text."""
-        if not text or not text.strip():
-            return None, 0.0
-
-        # Use heuristic patterns as fallback
-        for pattern, (label, confidence) in _HEURISTIC_PATTERNS.items():
-            if re.search(pattern, text, re.IGNORECASE):
-                return label, confidence
-
-        return None, 0.0
-
-
-# Initialize mock model
-_model = _MockModel()
-
-
 async def stage_ocr(file: UploadFile) -> StageOutcome:
     """
     Perform OCR on image files to extract and classify text.
@@ -78,29 +62,88 @@ async def stage_ocr(file: UploadFile) -> StageOutcome:
     # Get file extension
     extension = None
     if file.filename:
-        extension = file.filename.split(".")[-1].lower()
+        parts = file.filename.split(".")
+        if len(parts) > 1:
+            extension = parts[-1].lower()
 
     # Check if we have an extractor for this file type
     if not extension or extension not in IMAGE_EXTRACTORS:
+        logger.debug(
+            "ocr_stage_skip_unsupported_ext",
+            filename=file.filename,
+            extension=extension,
+        )
         return StageOutcome(label=None, confidence=None)
 
     # Extract text through OCR
     extractor = IMAGE_EXTRACTORS[extension]
-    text = await extractor(file)
+    try:
+        # Ensure file pointer is reset before reading
+        await file.seek(0)
+        text = await extractor(file)
+    except Exception as e:
+        logger.error(
+            "ocr_stage_extraction_error",
+            filename=file.filename,
+            extension=extension,
+            error=str(e),
+            exc_info=True,
+        )
+        return StageOutcome(label=None, confidence=None)
 
     # Skip if no text extracted
     if not text or not text.strip():
+        logger.debug("ocr_stage_skip_no_text", filename=file.filename)
         return StageOutcome(label=None, confidence=None)
 
     # Use ML model if available, otherwise fallback to heuristics
     if _MODEL_AVAILABLE:
-        label, confidence = _model.predict(text)
-        if label:
-            return StageOutcome(label=label, confidence=confidence)
-    else:
-        # Fallback to heuristic classification
-        for pattern, (label, confidence) in _HEURISTIC_PATTERNS.items():
-            if re.search(pattern, text, re.IGNORECASE):
-                return StageOutcome(label=label, confidence=confidence)
+        try:
+            label, confidence = predict(text)
+            if label and confidence is not None:
+                logger.debug(
+                    "ocr_stage_model_prediction",
+                    filename=file.filename,
+                    label=label,
+                    confidence=confidence,
+                )
+                # Return model prediction only if confidence is meaningful
+                return StageOutcome(
+                    label=label, confidence=round(confidence, 4) if confidence else 0.0
+                )
+            # Fall through to heuristics if model provides no label or confidence
+            logger.debug(
+                "ocr_stage_model_no_prediction",
+                filename=file.filename,
+                text_preview=text[:100],
+            )
+        except ModelNotAvailableError:
+            logger.warning(
+                "ocr_stage_model_not_available",
+                filename=file.filename,
+                fallback="heuristics",
+            )
+            # Fall through to heuristics
+        except Exception as e:
+            logger.error(
+                "ocr_stage_model_prediction_error",
+                filename=file.filename,
+                error=str(e),
+                exc_info=True,
+            )
+            # Don't fallback on generic model error, return unknown
+            return StageOutcome(label=None, confidence=None)
 
+    # Fallback to heuristic classification
+    for pattern, (label, confidence) in _HEURISTIC_PATTERNS.items():
+        if re.search(pattern, text, re.IGNORECASE):
+            logger.debug(
+                "ocr_stage_heuristic_match",
+                filename=file.filename,
+                label=label,
+                confidence=confidence,
+            )
+            return StageOutcome(label=label, confidence=confidence)
+
+    logger.debug("ocr_stage_no_match", filename=file.filename, text_preview=text[:100])
     return StageOutcome(label=None, confidence=None)

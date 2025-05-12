@@ -1,7 +1,5 @@
-"""src/classification/stages/filename.py
-###############################################################################
+"""
 Stage 1: Filename-based document classification
-###############################################################################
 This module implements the filename stage in the classification pipeline.
 It analyzes the filename for patterns that suggest document types.
 """
@@ -14,7 +12,8 @@ from typing import Dict, Tuple
 
 from starlette.datastructures import UploadFile
 
-from src.classification.pipeline import StageOutcome
+# Import StageOutcome from the new types module
+from src.classification.types import StageOutcome
 
 # Document patterns in filenames
 # Maps regex patterns to (label, confidence) tuples

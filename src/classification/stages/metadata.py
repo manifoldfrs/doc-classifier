@@ -1,7 +1,6 @@
-"""src/classification/stages/metadata.py
-###############################################################################
+"""
 Stage 2: Metadata-based document classification
-###############################################################################
+
 This module implements the metadata stage in the classification pipeline.
 It extracts and analyzes document metadata (especially from PDFs) for
 classification.
@@ -19,19 +18,18 @@ FastAPI event-loop remains responsive despite the synchronous pdfminer API.
 
 from __future__ import annotations
 
-# stdlib
 import asyncio
 import re
 from io import BytesIO
 from typing import Dict, Pattern, Tuple
 
-# third-party
 import structlog
 from pdfminer.high_level import extract_text
+from pdfminer.pdfdocument import PDFTextExtractionNotAllowed
+from pdfminer.psparser import PSException
 from starlette.datastructures import UploadFile
 
-# local
-from src.classification.pipeline import StageOutcome
+from src.classification.types import StageOutcome
 
 __all__: list[str] = ["stage_metadata"]
 
@@ -69,55 +67,73 @@ METADATA_PATTERNS: Dict[Pattern[str], Tuple[str, float]] = {
 
 async def _extract_pdf_metadata(content: bytes) -> str:
     """
-    Extract PDF metadata from document content.
+    Extract PDF metadata (approximated by first page text) from document content.
 
     Args:
         content: Raw PDF file content
 
     Returns:
-        Extracted metadata as string
+        Extracted text from the first page as a proxy for metadata, or empty string on error.
     """
 
     def _worker() -> str:
+        pdf_buffer = BytesIO(content)
         try:
-            # Use pdfminer to extract document info
-            pdf_buffer = BytesIO(content)
-            # Extract first page only for metadata
+            # Use pdfminer to extract first page text as metadata proxy
             return extract_text(pdf_buffer, page_numbers=[0], maxpages=1) or ""
-        except Exception:
+        except (PDFTextExtractionNotAllowed, PSException) as e:
+            logger.warning("pdf_metadata_extraction_denied", error=str(e))
+            return ""
+        except Exception as e:
+            # Catch broader exceptions during parsing
+            logger.error("pdf_metadata_extraction_failed", error=str(e), exc_info=True)
             return ""
 
+    # Run the synchronous pdfminer code in a separate thread
     return await asyncio.to_thread(_worker)
 
 
 async def stage_metadata(file: UploadFile) -> StageOutcome:
     """
-    Analyze document metadata to classify document type.
+    Analyze document metadata (approximated by first page text) to classify type.
 
-    Currently only works with PDFs. Other file types are skipped.
+    Currently only processes PDF files. Other types are skipped.
 
     Args:
         file: The uploaded file to analyze
 
     Returns:
-        StageOutcome with label and confidence if recognized pattern found,
-        otherwise label=None, confidence=None
+        StageOutcome with label and confidence if a recognized pattern is found
+        in the metadata proxy, otherwise label=None, confidence=None.
     """
-    # Skip non-PDF files
-    if not file.content_type or "pdf" not in file.content_type:
+    # Skip non-PDF files, as metadata extraction is PDF-specific here
+    if not file.content_type or "pdf" not in file.content_type.lower():
+        logger.debug("metadata_stage_skip_non_pdf", filename=file.filename)
         return StageOutcome(label=None, confidence=None)
 
-    # Extract metadata from PDF
-    await file.seek(0)
-    content = await file.read()
-    metadata = await _extract_pdf_metadata(content)
-
-    if not metadata:
+    try:
+        # Read content once for metadata extraction
+        await file.seek(0)
+        content = await file.read()
+        metadata_proxy = await _extract_pdf_metadata(content)
+    except Exception as e:
+        logger.error("metadata_stage_read_error", filename=file.filename, error=str(e))
         return StageOutcome(label=None, confidence=None)
 
-    # Match metadata against patterns
+    if not metadata_proxy or not metadata_proxy.strip():
+        logger.debug("metadata_stage_no_metadata", filename=file.filename)
+        return StageOutcome(label=None, confidence=None)
+
+    # Match extracted metadata proxy against predefined patterns
     for pattern, (label, confidence) in METADATA_PATTERNS.items():
-        if pattern.search(metadata):
+        if pattern.search(metadata_proxy):
+            logger.debug(
+                "metadata_stage_match",
+                filename=file.filename,
+                label=label,
+                confidence=confidence,
+            )
             return StageOutcome(label=label, confidence=confidence)
 
+    logger.debug("metadata_stage_no_match", filename=file.filename)
     return StageOutcome(label=None, confidence=None)

@@ -1,108 +1,86 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Awaitable, Callable, Dict
 
 import structlog
 from starlette.datastructures import UploadFile
 
+from src.classification.stages import (
+    stage_filename,
+    stage_metadata,
+    stage_ocr,
+    stage_text,
+)
+from src.classification.types import ClassificationResult, StageOutcome
 from src.core.config import get_settings
 
 logger = structlog.get_logger(__name__)
 
-STAGE_REGISTRY: list[Callable[[UploadFile], Awaitable["StageOutcome"]]] = []
-
-
-@dataclass
-class StageOutcome:
-    """
-    Result from a single classification stage.
-
-    Attributes:
-        label: The document type label identified by the stage, or None
-        confidence: Confidence score between 0.0-1.0, or None if no match
-    """
-
-    label: Optional[str] = None
-    confidence: Optional[float] = None
-
-
-@dataclass
-class ClassificationResult:
-    """
-    Complete document classification result.
-
-    Attributes:
-        filename: Original filename of the document
-        mime_type: MIME type of the document
-        size_bytes: File size in bytes
-        label: Final document type classification
-        confidence: Final confidence score (0.0-1.0)
-        stage_confidences: Confidence scores from each stage
-        pipeline_version: Version of the classification pipeline
-        processing_ms: Time taken to classify in milliseconds
-    """
-
-    filename: str
-    mime_type: str
-    size_bytes: int
-    label: str
-    confidence: float
-    stage_confidences: Dict[str, Optional[float]] = field(default_factory=dict)
-    pipeline_version: str = "v0.1.0"
-    processing_ms: float = 0.0
-
-    # Utility helpers
-    def dict(self) -> dict[str, Any]:
-        """Return a serialisable ``dict`` representation.
-
-        The public API layer (``src.api.routes.*``) expects dataclass
-        instances to expose a ``.dict()`` method similar to *Pydantic*
-        models.  Implementing the helper here avoids sprinkling
-        ``dataclasses.asdict`` conversions throughout the code-base while
-        keeping the domain model a plain dataclass.
-        """
-
-        from dataclasses import asdict
-
-        return asdict(self)
+STAGE_REGISTRY: list[Callable[[UploadFile], Awaitable["StageOutcome"]]] = [
+    stage_filename,
+    stage_metadata,
+    stage_text,
+    stage_ocr,
+]
 
 
 def _get_file_size(file: UploadFile) -> int:
     """
-    Get the size of an uploaded file in bytes.
+    Get the size of an uploaded file in bytes safely.
 
     Args:
         file: The uploaded file
 
     Returns:
-        Size in bytes
+        Size in bytes, or 0 if unable to determine.
     """
-    current_pos = file.file.tell()
-    file.file.seek(0, 2)  # Seek to end
-    size = file.file.tell()
-    file.file.seek(current_pos)  # Reset position
-    return size
+    try:
+        current_pos = file.file.tell()
+        file.file.seek(0, 2)  # Seek to end
+        size = file.file.tell()
+        file.file.seek(current_pos)  # Reset position
+        return size
+    except Exception as e:
+        logger.error("get_file_size_error", filename=file.filename, error=str(e))
+        return 0
 
 
 async def _execute_stages(file: UploadFile) -> Dict[str, StageOutcome]:
     """
-    Execute all registered classification stages on a file.
+    Execute all registered classification stages sequentially on a file.
 
     Args:
         file: The uploaded file to classify
 
     Returns:
-        Dictionary mapping stage names to their outcomes
+        Dictionary mapping stage function names to their StageOutcome.
     """
     results = {}
-
-    for stage in STAGE_REGISTRY:
-        stage_name = stage.__name__
-        outcome = await stage(file)
-        results[stage_name] = outcome
-
+    for stage_func in STAGE_REGISTRY:
+        stage_name = stage_func.__name__  # Use function name as key
+        try:
+            # Ensure file pointer is at the beginning for each stage
+            await file.seek(0)
+            outcome = await stage_func(file)
+            results[stage_name] = outcome
+            logger.debug(
+                "stage_executed",
+                stage=stage_name,
+                filename=file.filename,
+                outcome_label=outcome.label,
+                outcome_confidence=outcome.confidence,
+            )
+        except Exception as e:
+            logger.error(
+                "stage_execution_error",
+                stage=stage_name,
+                filename=file.filename,
+                error=str(e),
+                exc_info=True,
+            )
+            # Record error but continue to next stage if possible
+            results[stage_name] = StageOutcome(label=None, confidence=None)
     return results
 
 
@@ -114,22 +92,25 @@ async def classify(file: UploadFile) -> ClassificationResult:
         file: The uploaded file to classify
 
     Returns:
-        ClassificationResult with document type and confidence score
+        ClassificationResult containing the final label, confidence, and details.
     """
     start_time = time.perf_counter()
     settings = get_settings()
 
-    size_bytes = _get_file_size(file)
     filename = file.filename or "<unknown>"
     mime_type = file.content_type or "application/octet-stream"
+    size_bytes = _get_file_size(file)
 
+    # Execute all stages
     stage_outcomes = await _execute_stages(file)
 
+    # Extract confidences for the final result payload
     stage_confidences = {
         stage_name: outcome.confidence for stage_name, outcome in stage_outcomes.items()
     }
 
-    # Import here to break circular import
+    # Aggregate results from all stages
+    # Import here to avoid potential early import issues if confidence depends on types
     from src.classification.confidence import aggregate_confidences
 
     label, confidence = aggregate_confidences(stage_outcomes, settings=settings)
@@ -137,24 +118,32 @@ async def classify(file: UploadFile) -> ClassificationResult:
     end_time = time.perf_counter()
     processing_ms = (end_time - start_time) * 1000
 
+    # Create the final result object
     result = ClassificationResult(
         filename=filename,
         mime_type=mime_type,
         size_bytes=size_bytes,
         label=label,
-        confidence=confidence,
+        confidence=round(confidence, 4),  # Round confidence for consistency
         stage_confidences=stage_confidences,
         pipeline_version=settings.pipeline_version,
-        processing_ms=processing_ms,
+        processing_ms=round(processing_ms, 2),
+        # warnings/errors could be populated by stages if needed later
     )
 
+    # Log the final outcome
     logger.info(
         "classification_complete",
-        filename=filename,
-        label=label,
-        confidence=confidence,
-        processing_ms=processing_ms,
-        pipeline_version=settings.pipeline_version,
+        filename=result.filename,
+        label=result.label,
+        confidence=result.confidence,
+        processing_ms=result.processing_ms,
+        pipeline_version=result.pipeline_version,
+        # Log individual stage results for debugging
+        stage_outcomes={
+            name: (outcome.label, outcome.confidence)
+            for name, outcome in stage_outcomes.items()
+        },
     )
 
     return result
