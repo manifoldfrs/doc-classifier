@@ -55,7 +55,7 @@ def allowed_file(filename: str) -> bool:
 ResponseReturn = Union[Response, Tuple[Response, int]]
 
 
-@flask_app.route("/classify_file", methods=["POST"])  # type: ignore[misc]
+@flask_app.route("/classify_file", methods=["POST"])
 def classify_file_route() -> ResponseReturn:
     """Classify a single file based on *heuristics* in ``src.classifier``.
 

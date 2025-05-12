@@ -4,7 +4,8 @@ from werkzeug.datastructures import FileStorage
 
 
 def classify_file(file: FileStorage) -> str:
-    filename = file.filename.lower()
+    # FileStorage.filename is Optional[str]; guard against *None* for strict typing.
+    filename = (file.filename or "").lower()
     # file_bytes = file.read()
 
     if "drivers_license" in filename:
