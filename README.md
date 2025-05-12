@@ -1,8 +1,5 @@
 # HeronAI Document Classifier
 
-[![CI](https://github.com/yourusername/heronai-doc-classifier/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/heronai-doc-classifier/actions/workflows/ci.yml)
-[![Deploy](https://github.com/yourusername/heronai-doc-classifier/actions/workflows/deploy.yml/badge.svg)](https://github.com/yourusername/heronai-doc-classifier/actions/workflows/deploy.yml)
-
 A production-leaning document classification micro-service built with FastAPI, capable of scaling to millions of files per day while remaining simple, testable, and maintainable.
 
 ## 📚 Overview
