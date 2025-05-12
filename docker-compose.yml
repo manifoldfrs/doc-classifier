@@ -1,23 +1,9 @@
-###############################################################################
-# docker-compose.yml ─ Local Development Stack
-# -----------------------------------------------------------------------------
-# Spin-up the HeronAI service together with Redis (async queues, rate limiting)
-# and Postgres (future persistence/audit logs) in **one command**:
-#
-#     docker compose up --build
-#
-# The stack follows the spec's requirements (§10 Containerisation) and is kept
-# lean so CI/CD runners can bring it up quickly for integration tests.
-###############################################################################
 version: "3.9"
 
 volumes:
-  postgres_data: {} # durable volume for Postgres
+  postgres_data: {}
 
 services:
-  # -------------------------------------------------------------------------
-  # 1. Application – FastAPI + legacy Flask shim
-  # -------------------------------------------------------------------------
   app:
     build:
       context: .
@@ -25,7 +11,7 @@ services:
     env_file:
       - .env # copy .env.example → .env and tweak if needed
     ports:
-      - "8000:8000" # host:container
+      - "8000:8000"
     depends_on:
       - redis
       - db
@@ -33,19 +19,15 @@ services:
       uvicorn src.api.app:app
       --host 0.0.0.0
       --port 8000
-      --proxy-headers     # honours X-Forwarded-* if behind reverse proxy
+      --proxy-headers
     restart: unless-stopped
 
-  # -------------------------------------------------------------------------
   # 2. Redis – lightweight in-memory store for async jobs / rate-limiting
-  # -------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     restart: unless-stopped
 
-  # -------------------------------------------------------------------------
   # 3. Postgres – future persistence layer (not used by runtime yet)
-  # -------------------------------------------------------------------------
   db:
     image: postgres:15-alpine
     restart: unless-stopped
