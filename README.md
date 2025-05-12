@@ -18,7 +18,7 @@ The service processes files individually or in batches, providing confidence sco
 
 ## ✨ Features
 
-- **Rich Format Support**: PDF, DOCX, CSV, images (JPG/PNG), TXT, and more
+- **Rich Format Support**: Actively parses **PDF, DOCX, CSV, TXT, and images (JPG/JPEG/PNG)**. See `ALLOWED_EXTENSIONS` to configure which types are accepted for upload.
 - **Multi-stage Pipeline**: Intelligent classification with early-exit optimization
 - **Batch Processing**: Process up to 50 files in one request
 - **Async Job Support**: Background processing for larger batches
@@ -187,17 +187,17 @@ curl -X POST \
 
 ## 📊 Environment Variables
 
-| Variable                | Default                | Description                                |
-| ----------------------- | ---------------------- | ------------------------------------------ |
-| `DEBUG`                 | `false`                | Enable verbose logging & hot-reload        |
-| `ALLOWED_API_KEYS`      | `""`                   | Comma-separated static API keys            |
-| `ALLOWED_EXTENSIONS`    | `pdf,docx,jpg,png,...` | Comma-separated allowed file extensions    |
-| `MAX_FILE_SIZE_MB`      | `10`                   | Maximum file size in MB                    |
-| `MAX_BATCH_SIZE`        | `50`                   | Maximum number of files per batch request  |
-| `CONFIDENCE_THRESHOLD`  | `0.65`                 | Minimum confidence score to assign a label |
-| `EARLY_EXIT_CONFIDENCE` | `0.9`                  | Score threshold for pipeline early-exit    |
-| `PROMETHEUS_ENABLED`    | `true`                 | Toggle Prometheus metrics endpoint         |
-| `PIPELINE_VERSION`      | `v0.1.0`               | Semantic version embedded in API responses |
+| Variable                | Default                    | Description                                             |
+| ----------------------- | -------------------------- | ------------------------------------------------------- |
+| `DEBUG`                 | `false`                    | Enable verbose logging & hot-reload                     |
+| `ALLOWED_API_KEYS`      | `""`                       | Comma-separated static API keys                         |
+| `ALLOWED_EXTENSIONS`    | `pdf,docx,csv,txt,jpg,...` | Comma-separated **accepted** file extensions for upload |
+| `MAX_FILE_SIZE_MB`      | `10`                       | Maximum file size in MB                                 |
+| `MAX_BATCH_SIZE`        | `50`                       | Maximum number of files per batch request               |
+| `CONFIDENCE_THRESHOLD`  | `0.65`                     | Minimum confidence score to assign a label              |
+| `EARLY_EXIT_CONFIDENCE` | `0.95`                     | Score threshold for pipeline early-exit                 |
+| `PROMETHEUS_ENABLED`    | `true`                     | Toggle Prometheus metrics endpoint                      |
+| `PIPELINE_VERSION`      | `v0.1.0`                   | Semantic version embedded in API responses              |
 
 ## 🧪 Testing
 
