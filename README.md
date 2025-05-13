@@ -259,7 +259,3 @@ For more details, see:
 - [Limitations & Future Work](docs/limitations.md): Discusses current constraints and potential improvements.
 - [Frontend Setup Guide](docs/frontend_setup.md): Outlines how to build a React/TypeScript UI.
 - [API Docs](http://localhost:8000/docs): Live Swagger UI documentation (when running).
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
