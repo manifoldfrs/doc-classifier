@@ -125,14 +125,6 @@ tests/            # unit/, integration/, data/
 
 ---
 
-## 14. Hotkeys
-
-- **J** – Request deeper dive into pipeline implementation.
-- **K** – Ask for Terraform infra spec.
-- **L** – Open discussion on UI scope.
-
----
-
 ### Non-Negotiables
 
 • All new code merged to `main` _must_ have passing CI and adhere to these rules.
