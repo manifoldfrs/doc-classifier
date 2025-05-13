@@ -99,7 +99,6 @@ tests/            # unit/, integration/, data/
 
 - Provide multi-stage **Dockerfile** (builder → slim runtime).
 - `docker-compose.yml` for local app + Redis + Postgres (optional).
-- Vercel deployment must succeed without Docker; container path opt-in.
 
 ---
 
