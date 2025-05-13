@@ -1,6 +1,6 @@
 # HeronAI Document Classifier
 
-A production-leaning document classification micro-service built with FastAPI, capable of scaling to millions of files per day while remaining simple, testable, and maintainable.
+A production-leaning document classification micro-service built with FastAPI, featuring a robust multi-stage pipeline and an asynchronous job queue for handling higher processing volumes. Designed for simplicity, testability, and maintainability, it provides intelligent document categorization with clear API interfaces.
 
 ## 📚 Overview
 
