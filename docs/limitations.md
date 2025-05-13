@@ -103,17 +103,15 @@ This document outlines the current limitations of the HeronAI document classific
 
 3. **No Real Circuit Breakers**: The system lacks protection against cascading failures if dependent services (e.g., a future external metadata service) degrade.
 
-4. **In-Memory Job Storage**: Async jobs are stored in memory, making them vulnerable to service restarts or scaling events. A persistent store (like Redis or a database) is needed.
+4. **Job Persistence Improved**: Async jobs are now persisted using Redis Streams, greatly reducing vulnerability to service restarts or scaling events. Future work includes adding dead-letter queues and comprehensive monitoring.
 
 ### Scalability
 
 1. **Single-Process Limitation**: The current design operates within a single process, limiting throughput to the capacity of one server, especially for CPU-bound tasks like OCR or complex ML inference.
 
-2. **No Persistent Queue**: Large batch processing uses in-memory background tasks rather than a durable message queue (like RabbitMQ, SQS, Pub/Sub), limiting reliability and scalability.
+2. **Potential Memory Issues**: While streaming is attempted, certain parsing libraries might still load significant data into memory, limiting scalability for very large or complex files.
 
-3. **Potential Memory Issues**: While streaming is attempted, certain parsing libraries might still load significant data into memory, limiting scalability for very large or complex files.
-
-4. **Request-Response Coupling**: Synchronous classification ties up server resources for the entire processing duration, limiting concurrency.
+3. **Request-Response Coupling**: Synchronous classification ties up server resources for the entire processing duration, limiting concurrency.
 
 ### Feature Completeness
 
@@ -156,8 +154,7 @@ This document outlines the current limitations of the HeronAI document classific
 
 #### Distributed Processing & Queuing
 
-1. **Distributed Processing**:
-   - Implement a durable message queue (e.g., RabbitMQ, Redis Streams, SQS, Pub/Sub) for reliable asynchronous processing.
+1. **Distributed Processing**: Leverage the existing Redis Streams queue for reliable asynchronous processing and monitoring (e.g., add dead-letter queues, consumer groups, and metrics).
    - Decouple API ingestion from processing using worker services (e.g., Celery, Argo Workflows, KEDA-scaled jobs).
    - Implement a coordinator service or state machine to manage job distribution and status tracking.
 
@@ -378,7 +375,7 @@ graph LR
 
 #### Message Queues
 
-- Implement a durable message queue for reliable asynchronous processing.
+- The service already employs a durable Redis Streams queue for asynchronous processing; consider enhancements such as dead-letter queues, redrive policies, and improved observability.
 
 | Feature              | RabbitMQ                                      | Redis Streams                             | Cloud Queues (SQS, Pub/Sub)                           |
 | :------------------- | :-------------------------------------------- | :---------------------------------------- | :---------------------------------------------------- |
