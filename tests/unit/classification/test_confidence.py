@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import math
+from unittest.mock import patch
 
 import pytest
 
 from src.classification.confidence import aggregate_confidences
-from src.classification.pipeline import StageOutcome
+from src.classification.types import StageOutcome  # Import directly
 from tests.conftest import MockSettings
 
 
@@ -132,6 +133,20 @@ def test_outcomes_with_no_confidences_returns_unknown() -> None:
     assert conf == 0.0
 
 
+def test_outcomes_with_no_labels_or_confidence_returns_unknown() -> None:
+    """If stages provide outcomes but lack either label or confidence, result is unknown."""
+    settings = MockSettings()
+    outcomes = {
+        "stage1": _out("invoice", None),  # No confidence
+        "stage2": _out(None, 0.8),  # No label
+        "stage3": _out(None, None),  # Neither
+    }
+    label, conf = aggregate_confidences(outcomes, settings=settings)
+    # This hits the `if not label_scores:` check after the loop
+    assert label == "unknown"
+    assert conf == 0.0
+
+
 def test_single_stage_outcome_below_threshold() -> None:
     """A single stage outcome below confidence_threshold should become 'unsure'."""
     settings = MockSettings(confidence_threshold=0.7, early_exit_confidence=0.9)
@@ -160,6 +175,7 @@ def test_unknown_stage_name_default_weight() -> None:
     }
     label, conf = aggregate_confidences(outcomes, settings=settings)
     assert label == "contract"
+    # Confidence calculation: contract score 0.8, weight 1.0 -> 0.8 / 1.0 = 0.8
     assert conf == pytest.approx(0.8)
 
 
@@ -194,7 +210,9 @@ def test_mixed_outcomes_leading_to_unsure() -> None:
     # Its confidence is 0.8 which is >= the threshold of 0.7.
     label, conf = aggregate_confidences(outcomes, settings=settings)
     assert label == "invoice"  # Label should be invoice
-    assert conf == pytest.approx(0.8)  # The confidence of invoice (0.32 / 0.40)
+    # The calculated confidence for the winning label 'invoice' is:
+    # weighted_score / weight = 0.32 / 0.40 = 0.8
+    assert conf == pytest.approx(0.8)
 
 
 def test_early_exit_with_exact_threshold_value() -> None:
@@ -227,3 +245,34 @@ def test_aggregation_with_exact_confidence_threshold_value() -> None:
     label, conf = aggregate_confidences(outcomes, settings=settings)
     assert label == "invoice"  # Should not be "unsure" as conf >= threshold (0.7)
     assert conf == pytest.approx(slightly_above_0_7)
+
+
+def test_aggregation_where_winning_label_has_zero_weight() -> None:
+    """Test edge case where the highest weighted score belongs to a label with zero total weight (should not happen with current weights)."""
+    settings = MockSettings(confidence_threshold=0.1, early_exit_confidence=0.99)
+    # Mock stage weights for this specific test
+    with patch(
+        "src.classification.confidence.STAGE_WEIGHTS",
+        {"stage_a": 0.0, "stage_b": 0.5},
+    ):
+        outcomes = {
+            "stage_a": _out("label_zero_weight", 0.8),  # Score 0.0
+            "stage_b": _out("label_with_weight", 0.5),  # Score 0.25
+        }
+        label, conf = aggregate_confidences(outcomes, settings=settings)
+        # label_with_weight should win
+        assert label == "label_with_weight"
+        assert conf == pytest.approx(0.5)
+
+    # Test case where the only label found has zero weight
+    with patch(
+        "src.classification.confidence.STAGE_WEIGHTS",
+        {"stage_a": 0.0},
+    ):
+        outcomes = {
+            "stage_a": _out("label_zero_weight", 0.8),  # Score 0.0
+        }
+        label, conf = aggregate_confidences(outcomes, settings=settings)
+        # This should hit the `label_weights.get(best_label, 0.0) == 0.0` check
+        assert label == "unknown"
+        assert conf == 0.0

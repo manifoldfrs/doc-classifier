@@ -78,6 +78,19 @@ def test_no_selected_file(client):
         "/classify_file", data=data, content_type="multipart/form-data"
     )
     assert response.status_code == 400
+    assert response.get_json() == {"error": "No selected file"}  # Verify error message
+
+
+def test_unsupported_file_type(client):
+    """An unsupported file extension should trigger a 400 error."""
+    data = {"file": (BytesIO(b"dummy"), "file.zip")}
+    response = client.post(
+        "/classify_file", data=data, content_type="multipart/form-data"
+    )
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "File type not allowed: file.zip"
+    }  # Verify error message
 
 
 def test_success(client, mocker):
