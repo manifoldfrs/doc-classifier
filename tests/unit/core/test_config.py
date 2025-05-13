@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+from typing import List, Set
 
 import pytest
 
@@ -14,6 +16,10 @@ def test_settings_default_values(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ALLOWED_EXTENSIONS_RAW", raising=False)  # Target the raw field
     # Ensure any explicit ALLOWED_EXTENSIONS env var does not interfere with defaults
     monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
+    monkeypatch.delenv("DEBUG", raising=False)
+    monkeypatch.delenv("PROMETHEUS_ENABLED", raising=False)
+    monkeypatch.delenv("PIPELINE_VERSION", raising=False)
+    monkeypatch.delenv("COMMIT_SHA", raising=False)
 
     # Use the actual Settings class for default checking
     get_settings.cache_clear()  # Ensure fresh instance
@@ -21,19 +27,8 @@ def test_settings_default_values(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert settings.debug is False
     assert settings.allowed_api_keys == []  # Default is empty list
-    # When an ``ALLOWED_EXTENSIONS`` env var exists, it takes precedence over
-    # the hard-coded ``allowed_extensions_raw`` value in the Settings class.
-    # In the test runner the variable is populated from the developer's *.env*
-    # file, so we derive the expected set dynamically rather than relying on
-    # a hard-coded list that might diverge from the actual environment.
-    expected_default_extensions = set(
-        _parse_csv_str(
-            os.environ.get(
-                "ALLOWED_EXTENSIONS",
-                "pdf,docx,csv,jpg,jpeg,png",
-            )
-        )
-    )
+    # Default raw value is "pdf,docx,csv,jpg,jpeg,png"
+    expected_default_extensions = {"pdf", "docx", "csv", "jpg", "jpeg", "png"}
     assert settings.allowed_extensions == expected_default_extensions
     assert settings.max_file_size_mb == 10
     assert settings.max_batch_size == 50
@@ -75,7 +70,8 @@ def test_settings_parsing_from_env_vars(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_settings_is_extension_allowed() -> None:
     """Test the `is_extension_allowed` helper method."""
-    settings = get_settings()  # Use actual settings for this helper
+    get_settings.cache_clear()
+    settings = get_settings()
     settings.allowed_extensions = {"pdf", "docx", "jpg"}  # Override for test
 
     assert settings.is_extension_allowed("pdf") is True
@@ -84,7 +80,7 @@ def test_settings_is_extension_allowed() -> None:
     assert settings.is_extension_allowed("txt") is False  # Not in the set
     assert settings.is_extension_allowed("") is False
     assert settings.is_extension_allowed("nodot") is False
-    assert settings.is_extension_allowed(None) is False
+    assert settings.is_extension_allowed(None) is False  # type: ignore[arg-type]
 
 
 def test_settings_confidence_threshold_validator_valid() -> None:
@@ -214,3 +210,125 @@ def test_settings_default_extensions_override(monkeypatch: pytest.MonkeyPatch) -
     get_settings.cache_clear()
     settings = get_settings()
     assert settings.allowed_extensions == {"custom1", "custom2"}
+
+
+def test_settings_api_keys_already_json_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test ALLOWED_API_KEYS when it's already a JSON string in env."""
+    json_keys = json.dumps(["json_key1", "json_key2"])
+    monkeypatch.setenv("ALLOWED_API_KEYS", json_keys)
+    get_settings.cache_clear()
+    settings = get_settings()
+    assert settings.allowed_api_keys == ["json_key1", "json_key2"]
+
+
+def test_settings_extensions_already_json_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test ALLOWED_EXTENSIONS when it's already a JSON string in env."""
+    json_exts = json.dumps(["json_pdf", "json_txt"])
+    monkeypatch.setenv(
+        "ALLOWED_EXTENSIONS", json_exts
+    )  # This will be seen by _coerce_allowed_extensions
+    monkeypatch.delenv(
+        "ALLOWED_EXTENSIONS_RAW", raising=False
+    )  # Ensure raw is not used
+    get_settings.cache_clear()
+    settings = get_settings()
+    assert settings.allowed_extensions == {"json_pdf", "json_txt"}
+
+
+def test_coerce_api_keys_with_none_and_json_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _coerce_allowed_api_keys with None and JSON list string."""
+    # Test with None
+    monkeypatch.delenv("ALLOWED_API_KEYS", raising=False)
+    get_settings.cache_clear()
+    settings = Settings()  # Directly instantiate to test validator in isolation
+    assert settings.allowed_api_keys == []
+
+    # Test with JSON list string
+    monkeypatch.setenv("ALLOWED_API_KEYS", '["key_json_1", "key_json_2"]')
+    get_settings.cache_clear()
+    settings = Settings()
+    assert settings.allowed_api_keys == ["key_json_1", "key_json_2"]
+
+    # Test with malformed JSON string (should parse as CSV)
+    monkeypatch.setenv("ALLOWED_API_KEYS", '["key_malformed", key_also_mal')
+    get_settings.cache_clear()
+    settings = Settings()
+    assert settings.allowed_api_keys == ['["key_malformed"', "key_also_mal"]
+
+
+def test_coerce_extensions_with_none_empty_json_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _coerce_allowed_extensions with various inputs."""
+    # Test with ALLOWED_EXTENSIONS as None (env var not set)
+    # and allowed_extensions_raw also None (passed to constructor)
+    monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
+    monkeypatch.delenv("ALLOWED_EXTENSIONS_RAW", raising=False)
+    get_settings.cache_clear()
+    settings = Settings(allowed_extensions_raw=None)
+    assert settings.allowed_extensions == set()
+
+    # Test with ALLOWED_EXTENSIONS as empty string
+    monkeypatch.setenv("ALLOWED_EXTENSIONS", "")
+    monkeypatch.delenv("ALLOWED_EXTENSIONS_RAW", raising=False)
+    get_settings.cache_clear()
+    settings = Settings()
+    assert settings.allowed_extensions == set()
+
+    # Test with ALLOWED_EXTENSIONS as JSON list string
+    monkeypatch.setenv("ALLOWED_EXTENSIONS", '["ext_json1", ".ext_json2"]')
+    monkeypatch.delenv("ALLOWED_EXTENSIONS_RAW", raising=False)
+    get_settings.cache_clear()
+    settings = Settings()
+    assert settings.allowed_extensions == {"ext_json1", "ext_json2"}
+
+    # Test with malformed JSON string (should parse as CSV)
+    monkeypatch.setenv("ALLOWED_EXTENSIONS", '["ext_malformed", .ext_also_mal')
+    monkeypatch.delenv("ALLOWED_EXTENSIONS_RAW", raising=False)
+    get_settings.cache_clear()
+    settings = Settings()
+    assert settings.allowed_extensions == {'["ext_malformed"', "ext_also_mal"}
+
+
+def test_settings_allowed_extensions_raw_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test parse_settings when allowed_extensions_raw is None."""
+    monkeypatch.delenv(
+        "ALLOWED_EXTENSIONS", raising=False
+    )  # Ensure this doesn't interfere
+    monkeypatch.delenv("ALLOWED_EXTENSIONS_RAW", raising=False)
+    get_settings.cache_clear()
+    # Instantiate settings directly to pass allowed_extensions_raw=None
+    settings = Settings(allowed_extensions_raw=None)
+    assert settings.allowed_extensions == set()
+
+
+def test_settings_default_api_keys_when_env_var_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that allowed_api_keys is empty list if ALLOWED_API_KEYS env var is not set."""
+    monkeypatch.delenv("ALLOWED_API_KEYS", raising=False)
+    get_settings.cache_clear()
+    settings = Settings()  # Instantiated with no env var for API keys
+    assert settings.allowed_api_keys == []
+
+
+def test_settings_default_extensions_when_env_var_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that allowed_extensions uses default from raw if ALLOWED_EXTENSIONS env var is not set."""
+    monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)  # Ensure this isn't set
+    # ALLOWED_EXTENSIONS_RAW has a default value in the class definition
+    default_raw_ext_val = "pdf,docx,csv,jpg,jpeg,png"
+    expected_default_set = {
+        ext.strip().lower().lstrip(".")
+        for ext in default_raw_ext_val.split(",")
+        if ext.strip()
+    }
+
+    get_settings.cache_clear()
+    settings = Settings()  # Instantiated with no ALLOWED_EXTENSIONS env var
+    assert settings.allowed_extensions == expected_default_set

@@ -82,6 +82,20 @@ def test_predict_empty_text() -> None:
         mock_get_model.assert_not_called()
 
 
+def test_predict_text_strip_is_false() -> None:
+    """Test predict when text.strip() is false (e.g. only whitespace)."""
+    with patch("src.classification.model._get_model") as mock_get_model:
+        label, confidence = predict("     ")
+        assert label is None
+        assert confidence is None
+        mock_get_model.assert_not_called()
+
+        label, confidence = predict("\n\t\r")
+        assert label is None
+        assert confidence is None
+        mock_get_model.assert_not_called()
+
+
 def test_predict_model_not_found() -> None:
     """Test `predict` raises ModelNotAvailableError when model file is missing."""
     text = "Some valid text"

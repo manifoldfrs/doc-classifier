@@ -299,6 +299,59 @@ async def test_extract_text_from_csv_empty_data_fallback(
 
 
 @pytest.mark.asyncio
+async def test_extract_text_from_csv_empty_dataframe(
+    mock_upload_file_factory,
+) -> None:
+    """Tests CSV parsing when pandas returns an empty DataFrame."""
+    csv_content = b"col1,col2\n"  # Header only, or could be empty content that pandas parses to empty DF
+    mock_file = mock_upload_file_factory("empty_df.csv", csv_content, "text/csv")
+    expected_text_empty_df = ""  # If DataFrame is empty after read, should return empty
+
+    with (
+        patch("pandas.read_csv") as mock_read_csv,
+        patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread,
+    ):
+        mock_df_empty = pd.DataFrame()  # Empty DataFrame
+        mock_read_csv.return_value = mock_df_empty
+
+        async def fake_to_thread(worker_fn, *args, **kwargs):
+            return worker_fn(*args, **kwargs)
+
+        mock_to_thread.side_effect = fake_to_thread
+
+        result = await extract_text_from_csv(mock_file)
+        assert result == expected_text_empty_df
+
+
+@pytest.mark.asyncio
+async def test_extract_text_from_csv_decode_error_fallback(
+    mock_upload_file_factory,
+) -> None:
+    """Tests CSV parsing fallback when pandas fails and content decoding also fails."""
+    csv_content_invalid_utf8 = b"col1,col2\nval1,\xffval2"  # \xff is invalid in UTF-8
+    mock_file = mock_upload_file_factory(
+        "decode_error.csv", csv_content_invalid_utf8, "text/csv"
+    )
+    # If pandas fails and fallback decoding (with errors='replace') happens:
+    expected_text_on_decode_replace = (
+        "col1,col2\nval1,\ufffdval2"  # Unicode replacement char
+    )
+
+    with (
+        patch("pandas.read_csv", side_effect=ParserError("Pandas fails")),
+        patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread,
+    ):
+
+        async def fake_to_thread(worker_fn, *args, **kwargs):
+            return worker_fn(*args, **kwargs)
+
+        mock_to_thread.side_effect = fake_to_thread
+
+        result = await extract_text_from_csv(mock_file)
+        assert result == expected_text_on_decode_replace
+
+
+@pytest.mark.asyncio
 async def test_extract_text_from_csv_generic_error(mock_upload_file_factory) -> None:
     """Tests handling of generic Exception during CSV processing."""
     csv_content = b"col1,col2\nval1,val2"

@@ -101,18 +101,26 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def parse_settings(self) -> "Settings":
         """Process settings after initial validation (e.g., derive complex fields)."""
-        if not self.allowed_extensions:
-            # No explicit ``ALLOWED_EXTENSIONS`` provided via env var – compute from *raw*.
-            if self.allowed_extensions_raw is None:
-                # Nothing configured – disallow all extensions by default.
-                self.allowed_extensions = set()
-            else:
-                # Empty string means "no extensions allowed"; otherwise parse raw string.
-                self.allowed_extensions = {
-                    ext.strip().lower().lstrip(".")
-                    for ext in self.allowed_extensions_raw.split(",")
-                    if ext.strip()
-                }
+        # Check if ALLOWED_EXTENSIONS was explicitly set in the environment.
+        # The _coerce_allowed_extensions validator would have processed it into self.allowed_extensions.
+        # If it was set (even to an empty string resulting in an empty set), we honor that.
+        # Otherwise, if it wasn't set at all, we fall back to allowed_extensions_raw.
+        if os.getenv("ALLOWED_EXTENSIONS") is None:  # If env var was NOT set
+            if (
+                not self.allowed_extensions
+            ):  # And current allowed_extensions is empty (e.g. from constructor)
+                if self.allowed_extensions_raw is None:
+                    self.allowed_extensions = set()
+                else:
+                    self.allowed_extensions = {
+                        ext.strip().lower().lstrip(".")
+                        for ext in self.allowed_extensions_raw.split(",")
+                        if ext.strip()
+                    }
+        # If ALLOWED_EXTENSIONS *was* set in the environment, self.allowed_extensions
+        # would have been populated by _coerce_allowed_extensions, and we don't
+        # want to override it here with allowed_extensions_raw.
+        # An empty string for ALLOWED_EXTENSIONS env var should correctly result in an empty set.
 
         return self
 
@@ -176,7 +184,7 @@ class Settings(BaseSettings):
     def _coerce_allowed_extensions(cls, v: Any) -> Set[str]:
         """Convert comma or JSON strings into a set[str]."""
 
-        if v is None or v == "":
+        if v is None or v == "":  # If env var is explicitly empty or not set (None)
             return set()
 
         if isinstance(v, str):
@@ -186,7 +194,7 @@ class Settings(BaseSettings):
                     parsed: list[str] = json.loads(v)
                     return {ext.strip().lower().lstrip(".") for ext in parsed if ext}
                 except json.JSONDecodeError:
-                    pass
+                    pass  # Fall through for malformed JSON
             return {
                 ext.strip().lower().lstrip(".") for ext in v.split(",") if ext.strip()
             }
