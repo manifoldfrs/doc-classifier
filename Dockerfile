@@ -1,5 +1,6 @@
 FROM python:3.11-slim AS builder
 
+# Basic hygiene
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -38,9 +39,10 @@ RUN apt-get update \
 # Copy wheels/site-packages produced in *builder* stage
 COPY --from=builder /install /usr/local
 
-# Copy application source
+# Copy application source and necessary data
 WORKDIR /app
-COPY . .
+COPY src ./src
+COPY datasets ./datasets
 
 # Network port
 EXPOSE 8000
