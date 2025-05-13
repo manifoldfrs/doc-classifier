@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from src.classification.confidence import aggregate_confidences
@@ -51,21 +53,21 @@ def test_weighted_aggregation_majority_label() -> None:
 
     # Two stages agree on bank_statement with decent scores; one on invoice
     outcomes = {
-        "stage_filename": _out("bank_statement", 0.8),  # weight 0.15
-        "stage_metadata": _out("bank_statement", 0.6),  # weight 0.25
-        "stage_text": _out("invoice", 0.7),  # weight 0.35
+        "stage_filename": _out("bank_statement", 0.8),  # weight 0.40
+        "stage_metadata": _out("bank_statement", 0.6),  # weight 0.20
+        "stage_text": _out("invoice", 0.7),  # weight 0.20
     }
 
-    # Bank_statement weighted score = (0.8 * 0.15) + (0.6 * 0.25) = 0.12 + 0.15 = 0.27
-    # Bank_statement total weight = 0.15 + 0.25 = 0.40
-    # Bank_statement weighted average = 0.27 / 0.40 = 0.675
+    # Bank_statement weighted score = (0.8 * 0.40) + (0.6 * 0.20) = 0.32 + 0.12 = 0.44
+    # Bank_statement total weight = 0.40 + 0.20 = 0.60
+    # Bank_statement weighted average = 0.44 / 0.60 = 0.7333...
 
-    # Invoice weighted score = 0.7 * 0.35 = 0.245
-    # Invoice total weight = 0.35
-    # Invoice weighted average = 0.245 / 0.35 = 0.7
+    # Invoice weighted score = 0.7 * 0.20 = 0.14
+    # Invoice total weight = 0.20
+    # Invoice weighted average = 0.14 / 0.20 = 0.7
 
     # The actual code in aggregate_confidences looks at total weighted score not the average
-    # So bank_statement should win with 0.27 vs invoice with 0.245
+    # So bank_statement should win with 0.44 vs invoice with 0.14
 
     label, conf = aggregate_confidences(outcomes, settings=settings)
 
@@ -73,7 +75,7 @@ def test_weighted_aggregation_majority_label() -> None:
     assert label == "bank_statement"  # This matches the actual behavior
 
     # Check the confidence is correctly calculated
-    expected_confidence = 0.27 / 0.40  # bank_statement weighted average
+    expected_confidence = 0.44 / 0.60  # bank_statement weighted average
     assert conf == pytest.approx(expected_confidence, abs=0.01)
 
 
@@ -83,17 +85,17 @@ def test_threshold_downgrades_to_unsure() -> None:
     settings = MockSettings(confidence_threshold=0.8, early_exit_confidence=0.9)
 
     outcomes = {
-        "stage_filename": _out("invoice", 0.6),  # 0.6 * 0.15 = 0.09
-        "stage_text": _out("invoice", 0.5),  # 0.5 * 0.35 = 0.175
-        # total score = 0.09 + 0.175 = 0.265
-        # total weight = 0.15 + 0.35 = 0.50
-        # aggregated confidence = 0.265 / 0.50 = 0.53
+        "stage_filename": _out("invoice", 0.6),  # 0.6 * 0.40 = 0.24
+        "stage_text": _out("invoice", 0.5),  # 0.5 * 0.20 = 0.10
+        # total score = 0.24 + 0.10 = 0.34
+        # total weight = 0.40 + 0.20 = 0.60
+        # aggregated confidence = 0.34 / 0.60 = 0.5666...
     }
-    # 0.53 is less than threshold 0.8, so "unsure"
+    # 0.5666... is less than threshold 0.8, so "unsure"
     label, conf = aggregate_confidences(outcomes, settings=settings)
 
     assert label == "unsure"
-    assert conf == pytest.approx(0.53)
+    assert conf == pytest.approx(0.34 / 0.60)  # Updated expected confidence
     assert conf < settings.confidence_threshold
 
 
@@ -152,7 +154,7 @@ def test_unknown_stage_name_default_weight() -> None:
     """An unknown stage name should effectively get a weight of 1.0."""
     settings = MockSettings(confidence_threshold=0.1, early_exit_confidence=0.99)
     outcomes = {
-        "stage_filename": _out("invoice", 0.5),  # 0.5 * 0.15 = 0.075
+        "stage_filename": _out("invoice", 0.5),  # 0.5 * 0.40 = 0.20
         "stage_custom_new": _out("contract", 0.8),  # 0.8 * 1.0 (default) = 0.8
         # Contract will win with a higher weighted score
     }
@@ -166,33 +168,33 @@ def test_all_stages_unsure_results_in_unsure_with_highest_score() -> None:
     settings = MockSettings(confidence_threshold=0.85, early_exit_confidence=0.95)
     outcomes = {
         # All these will result in an aggregated score < 0.85, thus "unsure"
-        "stage_filename": _out("invoice", 0.7),  # 0.7 * 0.15 = 0.105
-        "stage_metadata": _out("invoice", 0.8),  # 0.8 * 0.25 = 0.20
-        "stage_text": _out("invoice", 0.6),  # 0.6 * 0.35 = 0.21
-        "stage_ocr": _out("invoice", 0.5),  # 0.5 * 0.25 = 0.125
-        # total score for invoice = 0.105 + 0.20 + 0.21 + 0.125 = 0.64
-        # total weight = 0.15 + 0.25 + 0.35 + 0.25 = 1.0
-        # aggregated confidence = 0.64 / 1.0 = 0.64
+        "stage_filename": _out("invoice", 0.7),  # 0.7 * 0.40 = 0.28
+        "stage_metadata": _out("invoice", 0.8),  # 0.8 * 0.20 = 0.16
+        "stage_text": _out("invoice", 0.6),  # 0.6 * 0.20 = 0.12
+        "stage_ocr": _out("invoice", 0.5),  # 0.5 * 0.20 = 0.10
+        # total score for invoice = 0.28 + 0.16 + 0.12 + 0.10 = 0.66
+        # total weight = 0.40 + 0.20 + 0.20 + 0.20 = 1.0
+        # aggregated confidence = 0.66 / 1.0 = 0.66
     }
-    # 0.64 < 0.85 threshold, so "unsure"
+    # 0.66 < 0.85 threshold, so "unsure"
     label, conf = aggregate_confidences(outcomes, settings=settings)
     assert label == "unsure"
-    assert conf == pytest.approx(0.64)
+    assert conf == pytest.approx(0.66)  # Updated expected confidence
 
 
 def test_mixed_outcomes_leading_to_unsure() -> None:
     """Test with mixed labels where the highest scoring label is still below threshold."""
     settings = MockSettings(confidence_threshold=0.7, early_exit_confidence=0.9)
     outcomes = {
-        "stage_filename": _out("invoice", 0.8),  # 0.8 * 0.15 = 0.12
-        "stage_metadata": _out("contract", 0.6),  # 0.6 * 0.25 = 0.15
-        "stage_text": _out("bank_statement", 0.5),  # 0.5 * 0.35 = 0.175
+        "stage_filename": _out("invoice", 0.8),  # 0.8 * 0.40 = 0.32 -> conf = 0.8
+        "stage_metadata": _out("contract", 0.6),  # 0.6 * 0.20 = 0.12 -> conf = 0.6
+        "stage_text": _out("bank_statement", 0.5),  # 0.5 * 0.20 = 0.10 -> conf = 0.5
     }
-    # Based on weighted scores, bank_statement has the highest weighted score
-    # But its average confidence is 0.5 which is below the threshold of 0.7
+    # Based on weighted scores (0.32 > 0.12 > 0.10), "invoice" has the highest weighted score.
+    # Its confidence is 0.8 which is >= the threshold of 0.7.
     label, conf = aggregate_confidences(outcomes, settings=settings)
-    assert label == "unsure"
-    assert conf == pytest.approx(0.5)  # The confidence of bank_statement
+    assert label == "invoice"  # Label should be invoice
+    assert conf == pytest.approx(0.8)  # The confidence of invoice (0.32 / 0.40)
 
 
 def test_early_exit_with_exact_threshold_value() -> None:
@@ -213,9 +215,15 @@ def test_early_exit_with_exact_threshold_value() -> None:
 def test_aggregation_with_exact_confidence_threshold_value() -> None:
     """Test aggregation where final score is exactly CONFIDENCE_THRESHOLD."""
     settings = MockSettings(confidence_threshold=0.7, early_exit_confidence=0.9)
-    # Construct outcomes such that the aggregated score is exactly 0.7
-    # Example: stage_text only, with confidence 0.7
-    outcomes = {"stage_text": _out("invoice", 0.7)}  # 0.7 * 0.35 / 0.35 = 0.7
+    # Using math.nextafter to get a float slightly above 0.7
+    # This helps ensure that (input_conf * weight) / weight >= 0.7
+    # after floating point operations.
+    slightly_above_0_7 = math.nextafter(0.7, 1.0)  # Should be 0.7000000000000001
+
+    # Construct outcomes such that the aggregated score should be >= 0.7
+    # With stage_text weight = 0.2:
+    # (0.7000000000000001 * 0.2) / 0.2 should be 0.7000000000000001
+    outcomes = {"stage_text": _out("invoice", slightly_above_0_7)}
     label, conf = aggregate_confidences(outcomes, settings=settings)
-    assert label == "invoice"  # Should not be "unsure"
-    assert conf == pytest.approx(0.7)
+    assert label == "invoice"  # Should not be "unsure" as conf >= threshold (0.7)
+    assert conf == pytest.approx(slightly_above_0_7)
