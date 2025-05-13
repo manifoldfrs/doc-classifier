@@ -165,8 +165,6 @@ curl -X POST \
 
 ## 🏗️ Architecture
 
-![HeronAI Document Classification System Diagram](@heron_project_diagram.png)
-
 ```mermaid
 graph TD
     A[Client Request POST /v1/files] --> B{FastAPI App};

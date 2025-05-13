@@ -489,9 +489,3 @@ export function ResultCard({ result }: ResultCardProps) {
 ```
 
 These examples provide a starting point for implementing the frontend components. The complete implementation would include additional components for job management, navigation, and dashboard visualizations.
-
-## Conclusion
-
-This document provides a comprehensive guide for implementing a React TypeScript frontend for the HeronAI Document Classifier. Following these guidelines will result in a modern, user-friendly interface that showcases the capabilities of the classification service while providing a smooth user experience.
-
-For further assistance or to discuss specific implementation details, please use the "L" hotkey to open a discussion on UI scope.
