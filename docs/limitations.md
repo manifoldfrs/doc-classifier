@@ -49,10 +49,10 @@ This document outlines the current limitations of the HeronAI document classific
     - [Idempotency](#idempotency)
     - [Graceful Shutdown](#graceful-shutdown)
     - [Incident Response](#incident-response)
-  - [Security](#security-1) # Note: This ID will need to be unique if "Security" is used above
+  - [Security](#security-1)
     - [IAM Best Practices](#iam-best-practices)
     - [Secrets Management](#secrets-management)
-    - [Network Security](#network-security-1) # Note: This ID will need to be unique
+    - [Network Security](#network-security-1)
     - [Dependency Scanning & SBOM](#dependency-scanning--sbom)
     - [Input Validation](#input-validation)
     - [Encryption](#encryption)
