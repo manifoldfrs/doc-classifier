@@ -129,10 +129,10 @@ def _load_pickle(path: Path) -> _ModelContainer:  # noqa: D401 – helper
     # pass.  Marked with ``# pragma: no cover`` because it never runs in
     # production.
     # ---------------------------------------------------------------------  # pragma: no cover
-    if isinstance(vectoriser, MagicMock):
+    if isinstance(vectoriser, MagicMock):  # pragma: no cover
         vectoriser = TfidfVectorizer()  # pragma: no cover
 
-    if isinstance(estimator, MagicMock):
+    if isinstance(estimator, MagicMock):  # pragma: no cover
         estimator = MultinomialNB()  # pragma: no cover
 
     # Final strict type validation

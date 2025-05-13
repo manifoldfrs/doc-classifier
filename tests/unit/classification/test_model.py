@@ -187,3 +187,29 @@ def test_get_model_uses_cache(mock_model_container: MagicMock) -> None:
         assert model1 is model2
         # _load_pickle should only be called once due to caching
         mock_load_pickle_func.assert_called_once_with(_DEFAULT_MODEL_PATH)
+
+
+def test_model_container_predict_probas_is_list() -> None:
+    """Test _ModelContainer.predict handles list from predict_proba."""
+    mock_vectoriser = MagicMock(spec=TfidfVectorizer)
+    mock_estimator = MagicMock(spec=MultinomialNB)
+    mock_estimator.classes_ = ["invoice", "contract", "other"]
+    # Mock transform to return something valid
+    mock_vectoriser.transform.return_value = [
+        [0.1, 0.2, 0.7]
+    ]  # Shape doesn't matter here
+
+    # Mock predict_proba to return a list instead of numpy array
+    mock_estimator.predict_proba.return_value = [
+        [0.1, 0.8, 0.1]
+    ]  # Max is 0.8 at index 1
+
+    container = _ModelContainer(mock_vectoriser, mock_estimator)
+
+    text = "Some text"
+    label, prob = container.predict(text)
+
+    assert label == "contract"  # Index 1 corresponds to 'contract'
+    assert prob == 0.8
+    mock_vectoriser.transform.assert_called_once_with([text])
+    mock_estimator.predict_proba.assert_called_once()

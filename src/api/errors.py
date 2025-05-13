@@ -116,7 +116,8 @@ async def _unhandled_exception_handler(
     logger.exception(
         "unhandled_exception",
         path=request.url.path,
-        error=str(exc),
+        error=str(exc),  # Log the specific error message
+        error_type=type(exc).__name__,  # Log the type of the error
     )
 
     payload = _build_error_payload(

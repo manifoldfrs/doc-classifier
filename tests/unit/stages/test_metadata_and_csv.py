@@ -10,26 +10,29 @@ from pandas.errors import EmptyDataError
 from src.classification.stages import metadata as _metadata_mod
 from src.classification.stages.metadata import stage_metadata
 from src.classification.types import StageOutcome
+from src.core.exceptions import MetadataProcessingError
 
 
 @pytest.mark.asyncio
 async def test_stage_metadata_pdf_match(monkeypatch: pytest.MonkeyPatch) -> None:
     """PDF files should yield a label when metadata patterns match."""
 
-    # Short-circuit the heavyweight PDF text extraction with a stub
-    monkeypatch.setattr(
-        _metadata_mod,
-        "_extract_pdf_metadata",
-        AsyncMock(return_value="This contract agreement is legally binding."),
-    )
+    # Mock _extract_pdf_metadata to return a specific string and check it's called correctly
+    mocked_extraction_result = "This contract agreement is legally binding."
+    mock_extract_metadata = AsyncMock(return_value=mocked_extraction_result)
+    monkeypatch.setattr(_metadata_mod, "_extract_pdf_metadata", mock_extract_metadata)
 
     mock_file = MagicMock()
     mock_file.filename = "contract.pdf"
     mock_file.content_type = "application/pdf"
     mock_file.seek = AsyncMock()
-    mock_file.read = AsyncMock(return_value=b"%PDF-1.4 dummy")
+    pdf_dummy_content = b"%PDF-1.4 dummy"
+    mock_file.read = AsyncMock(return_value=pdf_dummy_content)
 
     outcome: StageOutcome = await stage_metadata(mock_file)
+
+    # Check that _extract_pdf_metadata was called with content and filename
+    mock_extract_metadata.assert_called_once_with(pdf_dummy_content, "contract.pdf")
     assert outcome.label == "contract"
     # Confidence comes from METADATA_PATTERNS mapping (0.85)
     assert pytest.approx(outcome.confidence) == 0.85
@@ -53,13 +56,15 @@ async def test_stage_metadata_skip_non_pdf() -> None:
 async def test_stage_metadata_handles_exceptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Any unexpected error inside the stage should be swallowed and converted to a null outcome."""
+    """Any unexpected error inside _extract_pdf_metadata should be wrapped and raised as MetadataProcessingError."""
 
     # Force the helper to raise to exercise the exception branch
-    async def _boom(_: bytes) -> str:  # pragma: no cover – body executed in test
+    async def _boom_mock(
+        content_bytes: bytes, filename: str | None
+    ) -> str:  # pragma: no cover
         raise RuntimeError("explode")
 
-    monkeypatch.setattr(_metadata_mod, "_extract_pdf_metadata", _boom)
+    monkeypatch.setattr(_metadata_mod, "_extract_pdf_metadata", _boom_mock)
 
     mock_file = MagicMock()
     mock_file.filename = "bad.pdf"
@@ -67,8 +72,12 @@ async def test_stage_metadata_handles_exceptions(
     mock_file.seek = AsyncMock()
     mock_file.read = AsyncMock(return_value=b"%PDF bad")
 
-    outcome = await stage_metadata(mock_file)
-    assert outcome == StageOutcome(label=None, confidence=None)
+    with pytest.raises(MetadataProcessingError) as excinfo:
+        await stage_metadata(mock_file)
+
+    # The original "explode" should be part of the raised MetadataProcessingError's message
+    # due to the wrapping `raise MetadataProcessingError(...) from e`
+    assert "General processing error in metadata stage: explode" in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------------
@@ -107,5 +116,5 @@ async def test_extract_text_from_csv_fallback(monkeypatch: pytest.MonkeyPatch) -
     mock_file.read = AsyncMock(return_value=csv_bytes)
 
     text = await _extract_csv_text(mock_file)
-    # Replacement character � (0xFFFD) will appear where invalid byte was located
+    # Replacement character (0xFFFD) will appear where invalid byte was located
     assert "bad" in text and "data" in text

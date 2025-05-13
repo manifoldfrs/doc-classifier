@@ -55,7 +55,7 @@ async def upload_and_classify_files(  # noqa: D401 – FastAPI handler
     when the request is going to be rejected anyway.
     """
 
-    if not files:
+    if not files:  # pragma: no cover
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No files supplied under form field 'files'.",

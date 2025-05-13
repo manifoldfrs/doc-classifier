@@ -21,7 +21,7 @@ from __future__ import annotations
 import asyncio
 import re
 from io import BytesIO
-from typing import Dict, Pattern, Tuple
+from typing import Dict, Optional, Pattern, Tuple
 
 import structlog
 from pdfminer.high_level import extract_text
@@ -32,6 +32,7 @@ from pdfminer.psparser import PSException
 from starlette.datastructures import UploadFile
 
 from src.classification.types import StageOutcome
+from src.core.exceptions import MetadataProcessingError
 
 __all__: list[str] = ["stage_metadata"]
 
@@ -67,36 +68,51 @@ METADATA_PATTERNS: Dict[Pattern[str], Tuple[str, float]] = {
 }
 
 
-async def _extract_pdf_metadata(content: bytes) -> str:
+async def _extract_pdf_metadata(content: bytes, filename: Optional[str]) -> str:
     """
     Extract PDF metadata (approximated by first page text) from document content.
 
     Args:
         content: Raw PDF file content
+        filename: The original filename (for logging context)
 
     Returns:
         Extracted text from the first page as a proxy for metadata, or empty string on error.
     """
 
-    def _worker() -> str:
-        pdf_buffer = BytesIO(content)
+    def _worker(pdf_content: bytes, worker_filename: Optional[str]) -> str:
+        pdf_buffer = BytesIO(pdf_content)
         try:
             # Use pdfminer to extract first page text as metadata proxy
             return extract_text(pdf_buffer, page_numbers=[0], maxpages=1) or ""
         except PDFTextExtractionNotAllowed:
-            logger.warning("pdf_metadata_extraction_denied")
+            logger.warning("pdf_metadata_extraction_denied", filename=worker_filename)
             return ""
         except (PDFSyntaxError, PSException, PDFException) as e:
             logger.warning(
                 "pdf_metadata_extraction_failed_pdfminer",
+                filename=worker_filename,  # Use passed filename
                 error=str(e),
                 error_type=type(e).__name__,
             )
             return ""
-        # Removed broad `except Exception` - let unexpected errors propagate.
+        except (
+            Exception
+        ) as e:  # Catch any other unexpected error during pdfminer processing
+            logger.error(
+                "pdf_metadata_extraction_unexpected_error",
+                filename=worker_filename,  # Use passed filename
+                error=str(e),
+                exc_info=True,
+            )
+            # For truly unexpected errors in the worker, re-raise as MetadataProcessingError
+            # This gives more context than a generic Exception to the caller.
+            raise MetadataProcessingError(
+                f"Unexpected error in PDF metadata worker: {str(e)}"
+            ) from e
 
-    # Run the synchronous pdfminer code in a separate thread
-    return await asyncio.to_thread(_worker)
+    # Run the synchronous pdfminer code in a separate thread, passing filename
+    return await asyncio.to_thread(_worker, content, filename)
 
 
 async def stage_metadata(file: UploadFile) -> StageOutcome:
@@ -111,6 +127,8 @@ async def stage_metadata(file: UploadFile) -> StageOutcome:
     Returns:
         StageOutcome with label and confidence if a recognized pattern is found
         in the metadata proxy, otherwise label=None, confidence=None.
+    Raises:
+        MetadataProcessingError: If a non-recoverable error occurs during processing.
     """
     # Skip non-PDF files, as metadata extraction is PDF-specific here
     if not file.content_type or "pdf" not in file.content_type.lower():
@@ -121,17 +139,35 @@ async def stage_metadata(file: UploadFile) -> StageOutcome:
         # Read content once for metadata extraction
         await file.seek(0)
         content = await file.read()
-        metadata_proxy = await _extract_pdf_metadata(content)
+        # Pass filename to the extraction helper
+        metadata_proxy = await _extract_pdf_metadata(content, file.filename)
+    except OSError as e:
+        # Specific handling for I/O errors during file operations
+        logger.error(
+            "metadata_stage_io_error",
+            filename=file.filename,
+            error=str(e),
+            exc_info=True,
+        )
+        # Wrap OSError in a domain-specific exception to be caught by pipeline
+        raise MetadataProcessingError(
+            f"File I/O error in metadata stage: {str(e)}"
+        ) from e
+    except MetadataProcessingError:
+        # If _extract_pdf_metadata already raised our specific error, re-raise it
+        raise
     except Exception as e:
-        # Catch potential errors during file read/seek or the _extract_pdf_metadata call
-        # This includes errors propagated from the _worker if they were not pdfminer-specific
+        # Catch other potential errors during file read/seek or the _extract_pdf_metadata call
         logger.error(
             "metadata_stage_processing_error",
             filename=file.filename,
             error=str(e),
             exc_info=True,  # Include traceback for unexpected errors
         )
-        return StageOutcome(label=None, confidence=None)
+        # Wrap generic exceptions in MetadataProcessingError
+        raise MetadataProcessingError(
+            f"General processing error in metadata stage: {str(e)}"
+        ) from e
 
     if not metadata_proxy or not metadata_proxy.strip():
         logger.debug("metadata_stage_no_metadata", filename=file.filename)

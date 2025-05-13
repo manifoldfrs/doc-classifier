@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch, ANY
 
 import pandas as pd
 import pytest
@@ -372,6 +372,44 @@ async def test_extract_text_from_csv_generic_error(mock_upload_file_factory) -> 
 
         result = await extract_text_from_csv(mock_file)
         assert result == ""  # Expect empty string on generic error
+
+
+@pytest.mark.asyncio
+async def test_extract_text_from_csv_unicode_decode_error_in_fallback(
+    mock_upload_file_factory,
+) -> None:
+    """Tests CSV parsing fallback with UnicodeDecodeError during bytes.decode()."""
+    # Content that will cause UnicodeDecodeError with utf-8
+    # (e.g., latin-1 characters misinterpreted as utf-8)
+    # For example, b'\xe9' is 'é' in latin-1, but invalid as a standalone byte in utf-8.
+    csv_content_bad_encoding = b"col1,col2\nval1,\xe9val2"
+    mock_file = mock_upload_file_factory(
+        "unicode_error.csv", csv_content_bad_encoding, "text/csv"
+    )
+
+    # The fallback attempts content.decode("utf-8", errors="replace")
+    # \xe9 will be replaced by \ufffd (REPLACEMENT CHARACTER)
+    expected_text_fallback_replaced = "col1,col2\nval1,\ufffdval2"
+
+    with (
+        patch("pandas.read_csv", side_effect=ParserError("Pandas fails first")),
+        patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread,
+        patch("src.parsing.csv.logger") as mock_logger,  # Mock logger
+    ):
+
+        async def fake_to_thread(worker_fn, *args, **kwargs):
+            # The worker will attempt pandas.read_csv (mocked to fail),
+            # then attempt to decode bytes, which itself might log if it replaces chars
+            return worker_fn(*args, **kwargs)
+
+        mock_to_thread.side_effect = fake_to_thread
+
+        result = await extract_text_from_csv(mock_file)
+
+        # Expect the string with the replacement character from errors='replace'
+        assert result == "col1,col2\nval1,\ufffdval2"
+        # Ensure the logger was NOT called for this specific failure path
+        mock_logger.warning.assert_not_called()
 
 
 def test_dataframe_to_text_helper() -> None:

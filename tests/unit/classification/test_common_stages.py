@@ -12,6 +12,11 @@ from src.classification.stages.metadata import stage_metadata
 from src.classification.stages.ocr import stage_ocr
 from src.classification.stages.text import stage_text
 from src.classification.types import StageOutcome
+from src.core.exceptions import MetadataProcessingError
+from pdfminer.pdfparser import PDFSyntaxError
+from pdfminer.psparser import PSException
+from pdfminer.pdfdocument import PDFTextExtractionNotAllowed
+from pdfminer.pdftypes import PDFException
 
 
 @pytest.fixture
@@ -99,7 +104,8 @@ async def test_stage_metadata_pdf_match(mock_upload_file_factory) -> None:
         AsyncMock(return_value="This is an Invoice"),
     ) as mock_extract:
         outcome = await stage_metadata(mock_file)
-        mock_extract.assert_called_once_with(b"pdf_content")
+        # Ensure _extract_pdf_metadata is called with content AND filename
+        mock_extract.assert_called_once_with(b"pdf_content", "meta_invoice.pdf")
         assert outcome.label == "invoice"
         assert outcome.confidence == pytest.approx(0.86)
 
@@ -115,7 +121,8 @@ async def test_stage_metadata_pdf_no_match(mock_upload_file_factory) -> None:
         AsyncMock(return_value="Generic document info"),
     ) as mock_extract:
         outcome = await stage_metadata(mock_file)
-        mock_extract.assert_called_once_with(b"pdf_content")
+        # Ensure _extract_pdf_metadata is called with content AND filename
+        mock_extract.assert_called_once_with(b"pdf_content", "other_doc.pdf")
         assert outcome.label is None
         assert outcome.confidence is None
 
@@ -143,29 +150,173 @@ async def test_stage_metadata_pdf_extraction_fails(mock_upload_file_factory) -> 
         AsyncMock(return_value=""),
     ) as mock_extract:
         outcome = await stage_metadata(mock_file)
-        mock_extract.assert_called_once_with(b"bad_pdf")
+        # Ensure _extract_pdf_metadata is called with content AND filename
+        mock_extract.assert_called_once_with(b"bad_pdf", "corrupt.pdf")
         assert outcome.label is None
         assert outcome.confidence is None
 
 
 @pytest.mark.asyncio
 async def test_stage_metadata_processing_error(mock_upload_file_factory) -> None:
-    """Tests metadata stage handles generic exception during processing."""
+    """Tests metadata stage handles generic exception during processing by raising MetadataProcessingError."""
     mock_file = mock_upload_file_factory("error.pdf", b"pdf_content", "application/pdf")
-    # Mock file read to raise an exception
-    mock_file.read = AsyncMock(side_effect=Exception("Simulated read error"))
+    # Mock file read to raise an exception, which should be wrapped in MetadataProcessingError
+    mock_file.read = AsyncMock(side_effect=OSError("Simulated read error"))
 
     with patch("src.classification.stages.metadata.logger") as mock_logger:
-        outcome = await stage_metadata(mock_file)
+        with pytest.raises(MetadataProcessingError) as excinfo:
+            await stage_metadata(mock_file)
 
-        assert outcome.label is None
-        assert outcome.confidence is None
+        assert "File I/O error in metadata stage: Simulated read error" in str(
+            excinfo.value
+        )
+        # Check that the error was logged
         mock_logger.error.assert_called_once_with(
-            "metadata_stage_processing_error",
+            "metadata_stage_io_error",  # Updated to match the new specific log event
             filename="error.pdf",
             error="Simulated read error",
             exc_info=True,
         )
+
+    # Test with a generic exception from _extract_pdf_metadata
+    mock_file.read = AsyncMock(return_value=b"pdf_content")  # Reset read mock
+    with (
+        patch(
+            "src.classification.stages.metadata._extract_pdf_metadata",
+            AsyncMock(side_effect=Exception("Internal extraction boom")),
+        ) as mock_extract_boom,
+        patch("src.classification.stages.metadata.logger") as mock_logger_boom,
+    ):
+        with pytest.raises(MetadataProcessingError) as excinfo_boom:
+            await stage_metadata(mock_file)
+        assert (
+            "General processing error in metadata stage: Internal extraction boom"
+            in str(excinfo_boom.value)
+        )
+        mock_extract_boom.assert_called_once_with(b"pdf_content", "error.pdf")
+        # This log comes from the except Exception block in stage_metadata
+        mock_logger_boom.error.assert_called_once_with(
+            "metadata_stage_processing_error",
+            filename="error.pdf",
+            error="Internal extraction boom",
+            exc_info=True,
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "exception_type",
+    [
+        PDFSyntaxError("bad syntax"),
+        PSException("postscript error"),
+        PDFException("pdf issue"),
+        PDFTextExtractionNotAllowed("extraction not allowed"),
+        Exception("generic worker error"),
+    ],
+)
+async def test_stage_metadata_pdf_extraction_worker_errors(
+    mock_upload_file_factory,
+    exception_type: Exception,
+) -> None:
+    """Tests the worker function inside _extract_pdf_metadata handles specific PDF errors."""
+    mock_file = mock_upload_file_factory(
+        "worker_error.pdf", b"bad_pdf", "application/pdf"
+    )
+
+    # We need to patch the *actual* pdfminer function called by the worker
+    with (
+        patch(
+            "src.classification.stages.metadata.extract_text",
+            side_effect=exception_type,
+        ) as mock_pdfminer_extract,
+        patch("src.classification.stages.metadata.logger") as mock_logger,
+    ):
+        if isinstance(exception_type, Exception) and not isinstance(
+            exception_type,
+            (PDFSyntaxError, PSException, PDFException, PDFTextExtractionNotAllowed),
+        ):
+            # For generic exceptions, the worker raises MetadataProcessingError
+            with pytest.raises(MetadataProcessingError) as excinfo:
+                await stage_metadata(mock_file)
+            assert (
+                "Unexpected error in PDF metadata worker: generic worker error"
+                in str(excinfo.value)
+            )
+            mock_logger.error.assert_called_once_with(
+                "pdf_metadata_extraction_unexpected_error",
+                filename="worker_error.pdf",
+                error="generic worker error",
+                exc_info=True,
+            )
+        else:
+            # For specific PDF errors, the worker logs a warning and returns empty string
+            outcome = await stage_metadata(mock_file)
+            assert outcome.label is None
+            assert outcome.confidence is None
+
+            # Check that the specific pdfminer function was called inside the worker thread
+            mock_pdfminer_extract.assert_called_once()
+
+            # Check for appropriate warning log based on exception type
+            if isinstance(exception_type, PDFTextExtractionNotAllowed):
+                mock_logger.warning.assert_called_once_with(
+                    "pdf_metadata_extraction_denied", filename="worker_error.pdf"
+                )
+            else:
+                mock_logger.warning.assert_called_once_with(
+                    "pdf_metadata_extraction_failed_pdfminer",
+                    filename="worker_error.pdf",
+                    error=str(exception_type),
+                    error_type=type(exception_type).__name__,
+                )
+
+
+@pytest.mark.asyncio
+async def test_stage_metadata_pdf_empty_or_whitespace_metadata(
+    mock_upload_file_factory,
+) -> None:
+    """Tests metadata stage handles empty or whitespace-only metadata."""
+    mock_file = mock_upload_file_factory(
+        "empty_meta.pdf", b"pdf_content", "application/pdf"
+    )
+
+    for metadata_value in ["", "   \n "]:
+        with patch(
+            "src.classification.stages.metadata._extract_pdf_metadata",
+            AsyncMock(return_value=metadata_value),
+        ) as mock_extract:
+            outcome = await stage_metadata(mock_file)
+            mock_extract.assert_called_once_with(b"pdf_content", "empty_meta.pdf")
+            assert outcome.label is None
+            assert outcome.confidence is None
+
+
+@pytest.mark.asyncio
+async def test_stage_metadata_reraises_metadata_processing_error_from_worker(
+    mock_upload_file_factory,
+) -> None:
+    """Test that stage_metadata correctly re-raises MetadataProcessingError from worker."""
+    mock_file = mock_upload_file_factory(
+        "reraise.pdf", b"pdf_content", "application/pdf"
+    )
+    worker_exception = MetadataProcessingError("Worker-specific processing error")
+
+    with (
+        patch(
+            "src.classification.stages.metadata._extract_pdf_metadata",
+            AsyncMock(side_effect=worker_exception),
+        ) as mock_extract,
+        patch("src.classification.stages.metadata.logger") as mock_logger,
+    ):  # Mock logger to ensure it's NOT called for this re-raise path
+        with pytest.raises(MetadataProcessingError) as excinfo:
+            await stage_metadata(mock_file)
+
+        assert (
+            excinfo.value is worker_exception
+        )  # Ensure the exact exception is re-raised
+        mock_extract.assert_called_once_with(b"pdf_content", "reraise.pdf")
+        mock_logger.error.assert_not_called()  # No new error should be logged by stage_metadata
+        mock_logger.warning.assert_not_called()
 
 
 # Test Text Stage
@@ -326,6 +477,41 @@ async def test_stage_text_model_prediction_error(mock_upload_file_factory) -> No
             filename="predict_error.txt",
             error="Simulated prediction error",
             exc_info=True,
+        )
+
+
+@pytest.mark.asyncio
+async def test_stage_text_model_returns_none_fallback_no_heuristic_match(
+    mock_upload_file_factory,
+) -> None:
+    """Text stage: model returns (None, None), no heuristic match."""
+    mock_file = mock_upload_file_factory("nomatch.txt", b"content", "text/plain")
+    mock_txt_parser = AsyncMock(return_value="unique text no keywords")
+
+    with (
+        patch.dict(
+            "src.classification.stages.text.TEXT_EXTRACTORS", {"txt": mock_txt_parser}
+        ),
+        patch("src.classification.stages.text._MODEL_AVAILABLE", True),
+        patch(
+            "src.classification.stages.text.predict", return_value=(None, None)
+        ) as mock_model_predict,  # Model returns no prediction
+        patch("src.classification.stages.text.logger") as mock_logger,
+    ):
+        outcome = await stage_text(mock_file)
+
+        assert outcome.label is None
+        assert outcome.confidence is None
+        mock_model_predict.assert_called_once_with("unique text no keywords")
+        mock_logger.debug.assert_any_call(
+            "text_stage_model_no_prediction",
+            filename="nomatch.txt",
+            text_preview="unique text no keywords"[:100],
+        )
+        mock_logger.debug.assert_any_call(
+            "text_stage_no_match",
+            filename="nomatch.txt",
+            text_preview="unique text no keywords"[:100],
         )
 
 
@@ -491,4 +677,39 @@ async def test_stage_ocr_model_prediction_error(mock_upload_file_factory) -> Non
             filename="predict_error.png",
             error="Simulated prediction error",
             exc_info=True,
+        )
+
+
+@pytest.mark.asyncio
+async def test_stage_ocr_model_returns_none_fallback_no_heuristic_match(
+    mock_upload_file_factory,
+) -> None:
+    """OCR stage: model returns (None, None), no heuristic match."""
+    mock_file = mock_upload_file_factory("nomatch.jpg", b"img_content", "image/jpeg")
+    mock_image_parser = AsyncMock(return_value="very unique ocr content")
+
+    with (
+        patch.dict(
+            "src.classification.stages.ocr.IMAGE_EXTRACTORS", {"jpg": mock_image_parser}
+        ),
+        patch("src.classification.stages.ocr._MODEL_AVAILABLE", True),
+        patch(
+            "src.classification.stages.ocr.predict", return_value=(None, None)
+        ) as mock_model_predict,  # Model returns no prediction
+        patch("src.classification.stages.ocr.logger") as mock_logger,
+    ):
+        outcome = await stage_ocr(mock_file)
+
+        assert outcome.label is None
+        assert outcome.confidence is None
+        mock_model_predict.assert_called_once_with("very unique ocr content")
+        mock_logger.debug.assert_any_call(
+            "ocr_stage_model_no_prediction",
+            filename="nomatch.jpg",
+            text_preview="very unique ocr content"[:100],
+        )
+        mock_logger.debug.assert_any_call(
+            "ocr_stage_no_match",
+            filename="nomatch.jpg",
+            text_preview="very unique ocr content"[:100],
         )

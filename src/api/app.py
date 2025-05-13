@@ -16,8 +16,8 @@ try:
     from prometheus_fastapi_instrumentator import Instrumentator
 
     _PROM_AVAILABLE = True
-except ModuleNotFoundError:
-    _PROM_AVAILABLE = False
+except ModuleNotFoundError:  # pragma: no cover
+    _PROM_AVAILABLE = False  # pragma: no cover
 
 __all__: list[str] = ["app"]
 

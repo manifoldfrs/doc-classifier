@@ -332,3 +332,80 @@ def test_settings_default_extensions_when_env_var_is_none(
     get_settings.cache_clear()
     settings = Settings()  # Instantiated with no ALLOWED_EXTENSIONS env var
     assert settings.allowed_extensions == expected_default_set
+
+
+def test_coerce_api_keys_direct_list_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test _coerce_allowed_api_keys when passed a list directly."""
+    monkeypatch.delenv("ALLOWED_API_KEYS", raising=False)
+    get_settings.cache_clear()
+    settings = Settings(allowed_api_keys=["direct1", " direct2 ", "", 123])
+    assert settings.allowed_api_keys == ["direct1", "direct2", "123"]
+
+
+def test_coerce_extensions_direct_list_set_tuple(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _coerce_allowed_extensions when passed list/set/tuple."""
+    test_inputs = [
+        ["list_ext1", ".list_ext2", ""],
+        {"set_ext1", ".set_ext2", ""},
+        ("tuple_ext1", ".tuple_ext2", ""),
+    ]
+    expected_outputs = [
+        {"list_ext1", "list_ext2"},
+        {"set_ext1", "set_ext2"},
+        {"tuple_ext1", "tuple_ext2"},
+    ]
+
+    for direct_input, expected_set in zip(test_inputs, expected_outputs):
+        monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
+        monkeypatch.delenv("ALLOWED_EXTENSIONS_RAW", raising=False)
+        get_settings.cache_clear()
+        # Pass the list/set/tuple directly to the constructor
+        settings = Settings(allowed_extensions=direct_input)
+        assert (
+            settings.allowed_extensions == expected_set
+        ), f"Failed for input: {direct_input}"
+
+
+def test_parse_settings_honors_explicit_empty_extensions_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test parse_settings honors ALLOWED_EXTENSIONS="" env var over raw default."""
+    monkeypatch.setenv("ALLOWED_EXTENSIONS", "")
+    # Keep the raw default present
+    monkeypatch.setenv("ALLOWED_EXTENSIONS_RAW", "pdf,docx")
+    get_settings.cache_clear()
+    settings = Settings()
+    assert settings.allowed_extensions == set()  # Explicit empty env var should win
+
+
+def test_parse_settings_uses_raw_when_extensions_env_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test parse_settings falls back to raw when ALLOWED_EXTENSIONS env var is missing."""
+    monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
+    monkeypatch.setenv("ALLOWED_EXTENSIONS_RAW", "raw1, raw2")
+    get_settings.cache_clear()
+    settings = Settings()
+    assert settings.allowed_extensions == {"raw1", "raw2"}
+
+
+def test_coerce_api_keys_invalid_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test _coerce_allowed_api_keys falls back to CSV for invalid JSON."""
+    invalid_json = '["key1", key2]'  # Missing quotes around key2
+    monkeypatch.setenv("ALLOWED_API_KEYS", invalid_json)
+    get_settings.cache_clear()
+    settings = Settings()
+    # Should parse as CSV, splitting the malformed string
+    assert settings.allowed_api_keys == ['["key1"', "key2]"]
+
+
+def test_coerce_extensions_invalid_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test _coerce_allowed_extensions falls back to CSV for invalid JSON."""
+    invalid_json = '["ext1", .ext2]'  # Invalid syntax
+    monkeypatch.setenv("ALLOWED_EXTENSIONS", invalid_json)
+    monkeypatch.delenv("ALLOWED_EXTENSIONS_RAW", raising=False)
+    get_settings.cache_clear()
+    settings = Settings()
+    assert settings.allowed_extensions == {'["ext1"', "ext2]"}
