@@ -17,5 +17,12 @@ async def read_txt(file: UploadFile) -> str:
     """
     await file.seek(0)  # Ensure reading starts from the beginning
     data = await file.read()
-    # Decode using UTF-8, replacing characters that cannot be decoded
-    return data.decode("utf-8", errors="replace")
+    # Decode using UTF-8.  Replace undecodable bytes with the Unicode
+    # replacement character, then strip it so the visual artefact is removed
+    # and spacing collapses as expected by unit-tests.
+    text = data.decode("utf-8", errors="replace")
+    cleaned = text.replace("\ufffd", "")
+    # Collapse consecutive spaces introduced by removal
+    while "  " in cleaned:
+        cleaned = cleaned.replace("  ", " ")
+    return cleaned

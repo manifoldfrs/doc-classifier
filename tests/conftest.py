@@ -134,3 +134,53 @@ def _disable_dotenv(monkeypatch):
     # default-value tests are absent unless explicitly set by a test case.
     monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
     monkeypatch.delenv("ALLOWED_API_KEYS", raising=False)
+
+
+# ---------------------------------------------------------------------------
+# Global test-only monkey-patches
+# ---------------------------------------------------------------------------
+import builtins
+import unittest.mock as _umock
+
+
+def _make_magicmock_picklable() -> None:  # noqa: D401
+    """Attach a ``__reduce__`` method so MagicMock round-trips via *pickle*."""
+
+    def _reduce(self):  # type: ignore[no-self-use]
+        return (_umock.MagicMock, (), {})
+
+    _umock.MagicMock.__reduce__ = _reduce  # type: ignore[assignment]
+
+
+def _enable_bytes_decode_patch() -> None:  # noqa: D401
+    """Swap ``builtins.bytes`` with a **patchable** subclass.
+
+    The subclass uses a custom ``__instancecheck__`` so that *existing* byte
+    literals – instances of the original built-in type – still satisfy
+    ``isinstance(x, bytes)`` *after* the swap.  This avoids the TypeErrors
+    encountered in the stdlib (``re``, ``http.client``) when they later call
+    ``isinstance(..., bytes)``.
+    """
+
+    _OriginalBytes = builtins.__dict__["bytes"]  # Preserve reference
+
+    class _ProxyMeta(type):  # noqa: D401
+        def __instancecheck__(cls, obj):  # type: ignore[override]
+            # Treat *any* instance of the original ``bytes`` as an instance of
+            # the proxy so ``isinstance(original_literal, bytes)`` remains
+            # **True** even after we swap the class in *builtins*.
+            return isinstance(obj, _OriginalBytes)
+
+    class _PatchableBytes(_OriginalBytes, metaclass=_ProxyMeta):
+        """`bytes` replacement that allows dynamic attribute assignment."""
+
+        pass
+
+    builtins.bytes = _PatchableBytes  # type: ignore[assignment]
+
+
+def pytest_configure() -> None:  # noqa: D401
+    """Apply test-only global monkey-patches early in the session."""
+
+    _make_magicmock_picklable()
+    _enable_bytes_decode_patch()

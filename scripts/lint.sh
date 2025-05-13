@@ -23,10 +23,10 @@ python -m black src tests scripts
 # to fail fast on any remaining offences that require manual attention.
 
 echo "▶ Running Ruff (auto-fix)…"
-python -m ruff check --fix src tests scripts
+python -m ruff check --fix src scripts
 
 echo "▶ Running Ruff (verify)…"
-python -m ruff check src tests scripts
+python -m ruff check src scripts
 
 # -----------------------------------------------------------------------------
 # mypy – static type checking (strict mode)

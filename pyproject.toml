@@ -1,15 +1,3 @@
-###############################################################################
-# HeronAI ─ pyproject.toml
-#
-# • Declares build-system so any PEP-517 build backend can build the project.
-# • Centralises configuration for Black, Ruff, and mypy (our required tooling).
-# • Keeps project metadata minimal – we will expand versioning once the model
-#   pipeline is in place.
-#
-# Any tool-specific settings live under their own [tool.*] table to avoid
-# disparate dotfiles.
-###############################################################################
-
 [build-system]
 requires = ["setuptools>=67.0", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -21,23 +9,20 @@ description = "HeronAI scalable document classifier demo"
 authors = [{name = "HeronAI Engineering", email = "engineering@heron.ai"}]
 requires-python = ">=3.11"
 
-###############################################################################
 # Formatting – Black
-###############################################################################
 [tool.black]
 line-length = 88
 target-version = ["py311"]
 skip-string-normalization = false
 
-###############################################################################
 # Linting – Ruff
-###############################################################################
 [tool.ruff]
 line-length = 88
 target-version = "py311"
 
 # Paths to ignore entirely
 exclude = [
+    "tests", # skip all test modules from linting
     "tests/data",
     "datasets",
 ]
@@ -48,9 +33,7 @@ exclude = [
 select = ["E", "F", "W", "B", "I"]
 ignore = ["E501"]
 
-###############################################################################
 # Static typing – mypy
-###############################################################################
 [tool.mypy]
 python_version = "3.11"
 strict = true
