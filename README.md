@@ -38,9 +38,7 @@ This is the recommended way to run the service locally, as it includes all depen
 3. **Generate API Key**: Create a secret API key and add it to your `.env` file.
 
    ```bash
-   # Generate a key
    python scripts/generate_api_key.py --count 1
-   # Copy the generated key
    ```
 
    Open `.env` and set `ALLOWED_API_KEYS` to the key you just copied, for example:
