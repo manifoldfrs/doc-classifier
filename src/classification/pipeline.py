@@ -39,6 +39,7 @@ from src.classification.stages import (
 )
 from src.classification.types import ClassificationResult, StageOutcome
 from src.core.config import get_settings
+from src.core.exceptions import StageExecutionError  # Domain-specific stage error
 
 logger = structlog.get_logger(__name__)
 
@@ -71,7 +72,7 @@ def _get_file_size(file: UploadFile) -> int:
         size = file.file.tell()
         file.file.seek(current_pos)  # Reset file pointer to original position
         return size
-    except Exception as e:
+    except (OSError, AttributeError, ValueError) as e:
         logger.error(
             "get_file_size_error", filename=file.filename, error=str(e), exc_info=True
         )
@@ -108,15 +109,29 @@ async def _execute_stages(file: UploadFile) -> Dict[str, StageOutcome]:
                 outcome_label=outcome.label,
                 outcome_confidence=outcome.confidence,
             )
-        except Exception as e:
-            logger.error(
+        except StageExecutionError as e:
+            # Classification stage explicitly signalled a recoverable failure.
+            # Log at *warning* rather than *error* to differentiate from
+            # truly unexpected exceptions that will bubble up.
+            logger.warning(
                 "stage_execution_error",
                 stage=stage_name,
                 filename=file.filename,
                 error=str(e),
-                exc_info=True,  # Include traceback in logs
             )
             # Record the failure but allow the pipeline to continue
+            results[stage_name] = StageOutcome(label=None, confidence=None)
+        except Exception as e:  # noqa: BLE001 – pipeline must isolate stage crashes
+            # Any *unexpected* exception bubbling out of a stage is converted into a
+            # generic StageExecutionError so the rest of the pipeline can proceed.
+            logger.error(
+                "stage_unexpected_exception",
+                stage=stage_name,
+                filename=file.filename,
+                error=str(e),
+                exc_info=True,
+            )
+            # Treat as non-recoverable stage failure but keep pipeline alive.
             results[stage_name] = StageOutcome(label=None, confidence=None)
     return results
 
