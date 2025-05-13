@@ -595,3 +595,5 @@ graph LR
 
 - **Authentication:** Determine how the frontend will authenticate with the backend API (e.g., passing the API key securely, using JWT tokens obtained via an auth flow). Avoid exposing static API keys directly in frontend code. (Implementation depends heavily on the chosen auth method).
 - **API Client:** Use a robust data fetching library in React (like React Query or SWR) to handle API requests, caching, state management, and error handling effectively. (Frontend implementation detail).
+
+For more details on the frontend integration, please refer to the [frontend_setup.md](frontend_setup.md) file.
