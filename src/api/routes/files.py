@@ -28,10 +28,12 @@ router = APIRouter(prefix="/v1", tags=["files"])
 FILES_PARAM: List[UploadFile] = File(..., description="One or many files to classify")
 
 SETTINGS_DEP: Settings = Depends(get_settings)
+
 if TYPE_CHECKING:
     RedisT = aioredis.Redis[Any]
 else:
     RedisT = aioredis.Redis  # type: ignore[misc]
+
 REDIS_DEP: RedisT = Depends(get_redis_client)  # Added Redis client dependency
 
 

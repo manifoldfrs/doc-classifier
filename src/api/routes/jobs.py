@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, List, Optional, cast
 import redis.asyncio as aioredis
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from redis.exceptions import (
     ConnectionError as RedisConnectionError,
 )
@@ -22,6 +22,7 @@ from starlette.datastructures import UploadFile
 from src.api.schemas import ClassificationResultSchema
 from src.classification import classify
 from src.core.config import Settings, get_settings
+from src.core.exceptions import StageExecutionError
 from src.utils.auth import verify_api_key
 
 __all__: list[str] = [
@@ -212,12 +213,14 @@ async def run_job(
             )  # Unique ID for this specific file processing
             try:
                 internal_result = await classify(upload_file)
-                # Create schema, ensuring request_id is set for this file
-                schema_result = ClassificationResultSchema(
-                    **internal_result.dict(), request_id=file_request_id
-                )
+
+                # Use request_id from internal result if present; otherwise inject.
+                result_payload = internal_result.dict()
+                result_payload.setdefault("request_id", file_request_id)
+
+                schema_result = ClassificationResultSchema(**result_payload)
                 results.append(schema_result)
-            except Exception as exc:
+            except StageExecutionError as exc:
                 logger.error(
                     "job_file_classification_error",
                     job_id=job_id,
@@ -242,10 +245,35 @@ async def run_job(
                 results.append(error_schema_result)
                 # Optionally mark the whole job as failed if one file fails, or continue.
                 # For now, continue processing other files but log the error.
+            except Exception as exc:  # noqa: BLE001 – safety net for unexpected errors
+                logger.error(
+                    "job_file_classification_unexpected_error",
+                    job_id=job_id,
+                    filename=filename,
+                    error=str(exc),
+                    exc_info=True,
+                )
+                error_schema_result = ClassificationResultSchema(
+                    filename=filename,
+                    mime_type=content_type or "application/octet-stream",
+                    size_bytes=len(payload),
+                    label="error",
+                    confidence=0.0,
+                    stage_confidences={},
+                    processing_ms=0.0,
+                    pipeline_version=settings.pipeline_version,
+                    request_id=file_request_id,
+                    warnings=[],
+                    errors=[{"code": "classification_error", "message": str(exc)}],
+                )
+                results.append(error_schema_result)
             await asyncio.sleep(0.01)  # Yield control briefly
     except (
-        Exception
-    ) as e:  # Catch errors during the loop itself (e.g., Redis down mid-process)
+        RedisConnectionError,
+        RedisTimeoutError,
+        StageExecutionError,
+        Exception,
+    ) as e:  # noqa: BLE001 – outer loop guard
         logger.error("job_run_loop_error", job_id=job_id, error=str(e), exc_info=True)
         job_failed_flag = True
         overall_error_message = f"Job processing loop failed: {str(e)}"
@@ -316,7 +344,7 @@ async def get_job(
     try:
         job = JobRecord.model_validate_json(job_data_json)
         return job
-    except Exception as e:  # Catch Pydantic validation error or other issues
+    except ValidationError as e:  # Handle invalid JobRecord payload
         logger.error(
             "job_deserialization_failed", job_id=job_id, error=str(e), exc_info=True
         )
