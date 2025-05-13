@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 import redis.asyncio as aioredis
 import structlog
@@ -28,9 +28,11 @@ router = APIRouter(prefix="/v1", tags=["files"])
 FILES_PARAM: List[UploadFile] = File(..., description="One or many files to classify")
 
 SETTINGS_DEP: Settings = Depends(get_settings)
-REDIS_DEP: aioredis.Redis[Any] = Depends(
-    get_redis_client
-)  # Added Redis client dependency
+if TYPE_CHECKING:
+    RedisT = aioredis.Redis[Any]
+else:
+    RedisT = aioredis.Redis  # type: ignore[misc]
+REDIS_DEP: RedisT = Depends(get_redis_client)  # Added Redis client dependency
 
 
 async def _classify_single(
@@ -54,7 +56,7 @@ async def upload_and_classify_files(
     request: Request,
     files: List[UploadFile] = FILES_PARAM,
     settings: Settings = SETTINGS_DEP,
-    redis_client: aioredis.Redis[Any] = REDIS_DEP,  # Inject Redis client
+    redis_client: RedisT = REDIS_DEP,  # Inject Redis client
 ) -> JSONResponse:
     """
     Validate files, then run classification synchronously for small batches

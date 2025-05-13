@@ -5,7 +5,7 @@ import inspect
 import uuid
 from enum import Enum
 from io import BytesIO
-from typing import Any, Awaitable, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Awaitable, List, Optional, cast
 
 import redis.asyncio as aioredis
 import structlog
@@ -56,12 +56,17 @@ class JobRecord(BaseModel):
         use_enum_values = True  # Store enum values as strings in Redis
 
 
-_REDIS_CLIENT: Optional[aioredis.Redis[Any]] = None
+if TYPE_CHECKING:
+    RedisT = aioredis.Redis[Any]
+else:  # Runtime – plain class, avoids subscript TypeError
+    RedisT = aioredis.Redis  # type: ignore[misc]
+
+_REDIS_CLIENT: Optional[RedisT] = None
 
 
 async def get_redis_client(
     settings: Settings = Depends(get_settings),  # noqa: B008
-) -> aioredis.Redis[Any]:
+) -> RedisT:
     """
     Provides a Redis client instance. Initializes it on first call.
     This should ideally be managed by FastAPI's lifespan events for proper
@@ -110,7 +115,7 @@ _JOB_EXPIRY_SECONDS = 3600  # Expire jobs after 1 hour
 
 async def create_job(
     total_files: int,
-    redis_client: aioredis.Redis[Any] | Awaitable[aioredis.Redis[Any]],
+    redis_client: RedisT | Awaitable[RedisT],
 ) -> str:
     """
     Create a new job record in Redis and return its job_id.
@@ -125,7 +130,7 @@ async def create_job(
     # Accept either an awaited Redis client or an awaitable (dependency-injection quirk).
     if inspect.iscoroutine(redis_client):
         redis_client = await redis_client
-    redis_client = cast(aioredis.Redis[Any], redis_client)
+    redis_client = cast(RedisT, redis_client)
 
     job = JobRecord(total_files=total_files)
     job_key = f"{_JOB_KEY_PREFIX}{job.job_id}"
@@ -155,7 +160,7 @@ def _build_upload_from_bytes(
 async def run_job(
     job_id: str,
     raw_files: List[tuple[str, str | None, bytes]],
-    redis_client: aioredis.Redis[Any] | Awaitable[aioredis.Redis[Any]],
+    redis_client: RedisT | Awaitable[RedisT],
     settings: Settings,  # Pass settings for pipeline_version
 ) -> None:
     """
@@ -170,7 +175,7 @@ async def run_job(
     # Accept either an awaited Redis client or an awaitable (dependency-injection quirk).
     if inspect.iscoroutine(redis_client):
         redis_client = await redis_client
-    redis_client = cast(aioredis.Redis[Any], redis_client)
+    redis_client = cast(RedisT, redis_client)
 
     job_key = f"{_JOB_KEY_PREFIX}{job_id}"
 
@@ -275,9 +280,7 @@ router: APIRouter = APIRouter(
 )
 
 # Dependency constant used to avoid function calls in default parameters (Ruff B008)
-REDIS_DEP: aioredis.Redis[Any] | Awaitable[aioredis.Redis[Any]] = Depends(
-    get_redis_client
-)
+REDIS_DEP: RedisT | Awaitable[RedisT] = Depends(get_redis_client)
 
 
 @router.get(
@@ -287,13 +290,13 @@ REDIS_DEP: aioredis.Redis[Any] | Awaitable[aioredis.Redis[Any]] = Depends(
 )
 async def get_job(
     job_id: str,
-    redis_client: aioredis.Redis[Any] | Awaitable[aioredis.Redis[Any]] = REDIS_DEP,
+    redis_client: RedisT | Awaitable[RedisT] = REDIS_DEP,
 ) -> JobRecord:
     """Return job status or final results when completed, fetched from Redis."""
     # Accept either an awaited Redis client or an awaitable (dependency-injection quirk).
     if inspect.iscoroutine(redis_client):
         redis_client = await redis_client
-    redis_client = cast(aioredis.Redis[Any], redis_client)
+    redis_client = cast(RedisT, redis_client)
 
     job_key = f"{_JOB_KEY_PREFIX}{job_id}"
     try:
