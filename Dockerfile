@@ -47,5 +47,5 @@ COPY datasets ./datasets
 # Network port
 EXPOSE 8000
 
-# TODO: Health-aware startup could be added with /usr/bin/dumb-init – out of scope now
-CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use the PORT environment variable provided by Vercel (or default to 8000)
+CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "$PORT"]
