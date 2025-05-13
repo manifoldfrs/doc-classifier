@@ -42,6 +42,9 @@ PyYAML==6.0.2
 # prometheus_fastapi_instrumentator dependency
 prometheus_client==0.21.1
 
+# Redis client for job queue
+redis==5.0.7
+
 # Development / Tooling
 black==25.1.0
 ruff==0.11.9

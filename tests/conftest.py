@@ -28,26 +28,14 @@ class MockSettings:  # Does NOT inherit from real Settings
     allowed_api_keys: List[str] = []
 
     # File upload settings
-    # Define all fields that the application might access from settings
-    allowed_extensions_raw: str = (
-        "pdf,docx,xlsx,xls,csv,jpg,jpeg,png,tiff,tif,gif,bmp,eml,msg,txt"
-    )
+    allowed_extensions_raw: str = "pdf,docx,csv,jpg,jpeg,png"
     allowed_extensions: Set[str] = {
         "pdf",
         "docx",
-        "xlsx",
-        "xls",
         "csv",
         "jpg",
         "jpeg",
         "png",
-        "tiff",
-        "tif",
-        "gif",
-        "bmp",
-        "eml",
-        "msg",
-        "txt",
     }
     max_file_size_mb: int = 10
     max_batch_size: int = 50
@@ -57,6 +45,12 @@ class MockSettings:  # Does NOT inherit from real Settings
     early_exit_confidence: float = (
         0.90  # Ensure this is >= confidence_threshold by default
     )
+
+    # Redis settings
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_url: Optional[str] = None  # Will be constructed if not set
 
     def __init__(self, **kwargs):
         """Initialize with optional overrides for any attribute."""
@@ -92,6 +86,14 @@ class MockSettings:  # Does NOT inherit from real Settings
                 self.allowed_extensions = (
                     set()
                 )  # Or based on a default raw string if appropriate
+
+        # Construct redis_url if not provided and host/port/db are available
+        if "redis_url" not in kwargs and hasattr(self, "redis_host"):
+            self.redis_url = (
+                f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
+            )
+        elif "redis_url" in kwargs:  # Ensure redis_url from kwargs is used if provided
+            self.redis_url = kwargs["redis_url"]
 
     def is_extension_allowed(self, extension: str) -> bool:
         """Check if file extension is allowed."""
@@ -134,6 +136,11 @@ def _disable_dotenv(monkeypatch):
     # default-value tests are absent unless explicitly set by a test case.
     monkeypatch.delenv("ALLOWED_EXTENSIONS", raising=False)
     monkeypatch.delenv("ALLOWED_API_KEYS", raising=False)
+    # Ensure Redis env vars are also cleared for consistent MockSettings behavior
+    monkeypatch.delenv("REDIS_HOST", raising=False)
+    monkeypatch.delenv("REDIS_PORT", raising=False)
+    monkeypatch.delenv("REDIS_DB", raising=False)
+    monkeypatch.delenv("REDIS_URL", raising=False)
 
 
 # ---------------------------------------------------------------------------

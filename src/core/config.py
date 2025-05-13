@@ -87,6 +87,14 @@ class Settings(BaseSettings):
     confidence_threshold: float = 0.65
     early_exit_confidence: float = 0.95
 
+    # Redis settings for asynchronous job queue
+    redis_host: str = Field("localhost", alias="REDIS_HOST")
+    redis_port: int = Field(6379, alias="REDIS_PORT")
+    redis_db: int = Field(0, alias="REDIS_DB")
+    redis_url: Optional[str] = Field(
+        None, alias="REDIS_URL"
+    )  # Allows full URL override
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -122,6 +130,11 @@ class Settings(BaseSettings):
         # want to override it here with allowed_extensions_raw.
         # An empty string for ALLOWED_EXTENSIONS env var should correctly result in an empty set.
 
+        # Construct Redis URL if not provided directly
+        if not self.redis_url:
+            self.redis_url = (
+                f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
+            )
         return self
 
     @field_validator("early_exit_confidence")
@@ -228,10 +241,10 @@ def get_settings() -> Settings:  # noqa: D401 – accessor helper
 
     # Test-mode ➜ always deliver a **new** instance (no caching)
     if "PYTEST_CURRENT_TEST" in os.environ:
-        return Settings()
+        return Settings()  # type: ignore[call-arg]
 
     if _CACHED_SETTINGS is None:
-        _CACHED_SETTINGS = Settings()
+        _CACHED_SETTINGS = Settings()  # type: ignore[call-arg]
 
     return _CACHED_SETTINGS
 
