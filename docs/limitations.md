@@ -73,8 +73,8 @@ This document outlines the current limitations of the HeronAI document classific
     - [Storage Tiers](#storage-tiers)
     - [Spot Instances / Serverless](#spot-instances--serverless)
   - [ML Considerations in Production](#ml-considerations-in-production)
-    - [ML Model Tradeoffs](#ml-model-tradeoffs) # This will hold the ML Model table
-    - [OCR Solution Tradeoffs](#ocr-solution-tradeoffs) # This will hold the OCR table
+    - [ML Model Tradeoffs](#ml-model-tradeoffs)
+    - [OCR Solution Tradeoffs](#ocr-solution-tradeoffs)
   - [Interoperability & Frontend Integration](#interoperability--frontend-integration)
     - [API Gateway](#api-gateway)
     - [API Versioning](#api-versioning)
