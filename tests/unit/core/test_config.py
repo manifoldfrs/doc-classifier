@@ -30,7 +30,7 @@ def test_settings_default_values(monkeypatch: pytest.MonkeyPatch) -> None:
         _parse_csv_str(
             os.environ.get(
                 "ALLOWED_EXTENSIONS",
-                "pdf,docx,xlsx,xls,csv,jpg,jpeg,png,tiff,tif,gif,bmp,eml,msg,txt",
+                "pdf,docx,csv,jpg,jpeg,png",
             )
         )
     )

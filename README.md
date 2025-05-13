@@ -222,10 +222,10 @@ graph TD
 
 ```bash
 # Run linting, type checking, and tests (with coverage)
-./scripts/lint.sh && pytest
+./scripts/lint.sh && python -m pytest
 
 # Run only tests
-python -m pytest -q
+python -m pytest
 
 # Run tests with coverage report (HTML + XML for CI)
 python -m pytest --cov=src --cov-report=html --cov-report=xml
