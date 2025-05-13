@@ -12,19 +12,74 @@ This document outlines the current limitations of the HeronAI document classific
   - [Security](#security)
 - [Proposed Extensions](#proposed-extensions)
   - [ML Enhancements](#ml-enhancements)
+    - [Advanced Models & Transfer Learning](#advanced-models--transfer-learning)
+    - [Active Learning & Ensemble Methods](#active-learning--ensemble-methods)
+    - [Multi-language Support & Improved OCR](#multi-language-support--improved-ocr)
   - [Architecture Improvements](#architecture-improvements)
+    - [Distributed Processing & Queuing](#distributed-processing--queuing)
+    - [Streaming Architecture & Caching](#streaming-architecture--caching)
+    - [Resilience Patterns](#resilience-patterns)
   - [Feature Additions](#feature-additions)
+    - [Document Understanding & Extraction](#document-understanding--extraction)
+    - [Advanced Classification & API Enhancements](#advanced-classification--api-enhancements)
+    - [Interactive Training UI](#interactive-training-ui)
   - [Security Enhancements](#security-enhancements)
+    - [Authentication & Authorization](#authentication--authorization)
+    - [Document Security & PII](#document-security--pii)
+    - [Compliance & Auditing](#compliance--auditing)
 - [Productionization Considerations](#productionization-considerations)
   - [Conceptual Production Architecture Diagram](#conceptual-production-architecture-diagram)
-  - [Cloud Deployment (GCP/AWS using Terraform)](#cloud-deployment-gcpaws-using-terraform)
+  - [Deployment & Infrastructure](#deployment--infrastructure)
+    - [Infrastructure as Code (IaC)](#infrastructure-as-code-iac)
+    - [Managed Services](#managed-services)
+    - [Cloud Compute Options](#cloud-compute-options)
+    - [Networking](#networking)
+    - [Container Registry](#container-registry)
+  - [Scalability & Performance](#scalability--performance)
+    - [Architectural Approach (Decoupling, Statelessness)](#architectural-approach-decoupling-statelessness)
+    - [Auto-Scaling](#auto-scaling)
+    - [Message Queues](#message-queues)
+    - [Worker Orchestration](#worker-orchestration)
+    - [Database Scaling & Pooling](#database-scaling--pooling)
+    - [CDN](#cdn)
   - [Robustness & Reliability](#robustness--reliability)
-  - [Scalability](#scalability-1)
-  - [Security](#security-1)
+    - [Health Checks](#health-checks)
+    - [Redundancy](#redundancy)
+    - [Distributed Tracing](#distributed-tracing)
+    - [Idempotency](#idempotency)
+    - [Graceful Shutdown](#graceful-shutdown)
+    - [Incident Response](#incident-response)
+  - [Security](#security-1) # Note: This ID will need to be unique if "Security" is used above
+    - [IAM Best Practices](#iam-best-practices)
+    - [Secrets Management](#secrets-management)
+    - [Network Security](#network-security-1) # Note: This ID will need to be unique
+    - [Dependency Scanning & SBOM](#dependency-scanning--sbom)
+    - [Input Validation](#input-validation)
+    - [Encryption](#encryption)
+    - [Auditing & Pen Testing](#auditing--pen-testing)
   - [CI/CD for Production](#cicd-for-production)
+    - [Environment Promotion](#environment-promotion)
+    - [Deployment Strategies](#deployment-strategies)
+    - [Infrastructure Automation](#infrastructure-automation)
+    - [Testing in Pipeline](#testing-in-pipeline)
+    - [Secrets in CI/CD](#secrets-in-cicd)
   - [Data Management & Persistence](#data-management--persistence)
+    - [Database Backups](#database-backups)
+    - [Object Storage Lifecycle](#object-storage-lifecycle)
+    - [Data Retention & Cleanup](#data-retention--cleanup)
+    - [Disaster Recovery](#disaster-recovery)
   - [Cost Optimization](#cost-optimization)
-  - [Interoperability & Accessibility](#interoperability--accessibility)
+    - [Monitoring & Right-Sizing](#monitoring--right-sizing)
+    - [Storage Tiers](#storage-tiers)
+    - [Spot Instances / Serverless](#spot-instances--serverless)
+  - [ML Considerations in Production](#ml-considerations-in-production)
+    - [ML Model Tradeoffs](#ml-model-tradeoffs) # This will hold the ML Model table
+    - [OCR Solution Tradeoffs](#ocr-solution-tradeoffs) # This will hold the OCR table
+  - [Interoperability & Frontend Integration](#interoperability--frontend-integration)
+    - [API Gateway](#api-gateway)
+    - [API Versioning](#api-versioning)
+    - [API Documentation](#api-documentation)
+    - [Frontend Integration (CORS, Auth, API Client)](#frontend-integration-cors-auth-api-client)
 
 ## Current Limitations
 
@@ -82,36 +137,41 @@ This document outlines the current limitations of the HeronAI document classific
 
 ### ML Enhancements
 
-1. **Advanced Models**: Replace/augment Naive Bayes with transformer-based models (e.g., LayoutLM, BERT, DistilBERT) for improved understanding of document context and structure.
+#### Advanced Models & Transfer Learning
 
+1. **Advanced Models**: Replace/augment Naive Bayes with transformer-based models (e.g., LayoutLM, BERT, DistilBERT) for improved understanding of document context and structure.
 2. **Transfer Learning**: Leverage pre-trained document understanding models fine-tuned on specific classification tasks and domains.
 
-3. **Active Learning Pipeline**: Implement a feedback loop where low-confidence classifications are flagged for human review, with corrections feeding back into model retraining.
+#### Active Learning & Ensemble Methods
 
+3. **Active Learning Pipeline**: Implement a feedback loop where low-confidence classifications are flagged for human review, with corrections feeding back into model retraining.
 4. **Ensemble Approaches**: Combine multiple specialist models (e.g., layout-aware, text-based, metadata-based) for more robust classification.
 
-5. **Multi-language Support**: Integrate language detection and use appropriate language-specific models or multilingual models.
+#### Multi-language Support & Improved OCR
 
+5. **Multi-language Support**: Integrate language detection and use appropriate language-specific models or multilingual models.
 6. **Improved OCR**: Integrate OCR preprocessing steps (deskewing, denoising, binarization) and potentially explore alternative OCR engines or cloud-based OCR services for higher accuracy.
 
 ### Architecture Improvements
 
-1. **Distributed Processing**:
+#### Distributed Processing & Queuing
 
+1. **Distributed Processing**:
    - Implement a durable message queue (e.g., RabbitMQ, Redis Streams, SQS, Pub/Sub) for reliable asynchronous processing.
    - Decouple API ingestion from processing using worker services (e.g., Celery, Argo Workflows, KEDA-scaled jobs).
    - Implement a coordinator service or state machine to manage job distribution and status tracking.
 
-2. **Streaming Architecture**:
+#### Streaming Architecture & Caching
 
+2. **Streaming Architecture**:
    - Ensure end-to-end streaming processing, especially for large files, potentially using chunked uploads directly to object storage (S3/GCS) via presigned URLs.
    - Adapt parsing libraries or strategies to work on streamed data where possible.
-
 3. **Caching Layer**:
-
    - Add Redis caching for duplicate document detection based on content hash (SHA256).
    - Cache classification results for identical content hashes to avoid redundant processing.
    - Consider caching ML model predictions for identical text inputs if beneficial.
+
+#### Resilience Patterns
 
 4. **Resilience Patterns**:
    - Implement proper circuit breakers (e.g., using `pybreaker` or framework integrations) for external dependencies (future databases, APIs).
@@ -120,23 +180,25 @@ This document outlines the current limitations of the HeronAI document classific
 
 ### Feature Additions
 
-1. **Document Understanding**:
+#### Document Understanding & Extraction
 
+1. **Document Understanding**:
    - Extend the pipeline to extract structured data (key-value pairs, tables) from classified documents using techniques like layout analysis, NER, or specialized models.
    - Add entity recognition for key fields (dates, amounts, names, addresses, account numbers).
    - Implement document segmentation to identify functional blocks (header, footer, tables, paragraphs) in complex layouts.
 
-2. **Multi-label & Hierarchical Classification**:
+#### Advanced Classification & API Enhancements
 
+2. **Multi-label & Hierarchical Classification**:
    - Allow documents to be assigned multiple relevant labels (e.g., "invoice" and "contract").
    - Implement hierarchical classification (e.g., financial→statement→bank).
    - Provide confidence scores per category rather than a single overall score.
-
 3. **API Enhancements**:
-
    - Add a bulk document comparison endpoint (e.g., find duplicates).
    - Implement search capabilities across processed document metadata or extracted text.
    - Add webhook notifications for asynchronous job completion.
+
+#### Interactive Training UI
 
 4. **Interactive Training UI**:
    - Build an admin interface (e.g., using React/Vue) for reviewing low-confidence classifications.
@@ -145,21 +207,24 @@ This document outlines the current limitations of the HeronAI document classific
 
 ### Security Enhancements
 
-1. **Advanced Authentication/Authorization**:
+#### Authentication & Authorization
 
+1. **Advanced Authentication/Authorization**:
    - Implement JWT-based authentication with short-lived access/refresh tokens.
    - Add OAuth2/OIDC support for integration with identity providers.
    - Implement Role-Based Access Control (RBAC) for different API operations (upload, read, admin).
    - Introduce scoped API keys with specific permissions.
 
-2. **Document Security**:
+#### Document Security & PII
 
+2. **Document Security**:
    - Implement client-side encryption or server-side encryption (SSE) for documents stored at rest (e.g., in S3/GCS).
    - Integrate PII detection and automatic redaction capabilities (using libraries like `presidio` or cloud services like AWS Comprehend/GCP DLP).
    - Support document watermarking for tracking provenance.
 
-3. **Compliance & Auditing**:
+#### Compliance & Auditing
 
+3. **Compliance & Auditing**:
    - Implement comprehensive audit logging for all document access and processing operations, stored securely.
    - Define and enforce data retention policies and automatic purging mechanisms.
    - Add features to generate compliance reports (e.g., for GDPR, HIPAA if applicable).
@@ -264,493 +329,298 @@ graph LR
 - Both API and Worker services emit **Logs and Metrics** to a centralized monitoring system.
 - The entire infrastructure within the cloud environment should be managed via **Terraform**.
 
-### Cloud Deployment (GCP/AWS using Terraform)
+### Deployment & Infrastructure
+
+#### Infrastructure as Code (IaC)
 
 - **Infrastructure as Code (IaC):** Use Terraform to define and manage all cloud resources (compute, storage, networking, queues, databases, IAM roles, etc.). This ensures consistency, repeatability, and version control for the infrastructure. Structure Terraform code using modules for reusability (e.g., VPC module, database module, compute module).
+
+#### Managed Services
+
 - **Managed Services:** Prefer managed services to reduce operational overhead:
   - **Compute:** GKE/EKS (Kubernetes), Cloud Run/App Runner (Serverless Containers), or EC2/Compute Engine with Auto Scaling Groups. Choose based on control vs. management trade-offs. Kubernetes offers flexibility but higher complexity; serverless containers are simpler for stateless web apps.
   - **Storage:** S3/GCS for durable, scalable file storage. Use lifecycle policies for cost management.
   - **Queues:** SQS/Pub/Sub for reliable, scalable message queuing. Choose standard or FIFO based on ordering requirements.
   - **Database:** RDS/Cloud SQL (Postgres) for relational metadata, job tracking, audit logs. Consider read replicas for scaling read load.
   - **Cache:** ElastiCache/Memorystore (Redis) for caching job states, session data, or duplicate hashes.
-- **Networking:** Define a Virtual Private Cloud (VPC) with public and private subnets. Place databases and sensitive resources in private subnets. Use Security Groups / Firewall Rules to control traffic flow strictly. Deploy the API behind a Load Balancer (ALB/ELB/Cloud Load Balancer).
-- **Container Registry:** Use ECR/GCR/Artifact Registry to store Docker images securely.
+
+#### Cloud Compute Options
+
+| Feature                 | Kubernetes (GKE, EKS, AKS)                | Serverless Containers (Cloud Run, App Runner, ACI) | VMs + Auto Scaling Groups (EC2, Compute Engine)     |
+| :---------------------- | :---------------------------------------- | :------------------------------------------------- | :-------------------------------------------------- |
+| **Control**             | High                                      | Moderate                                           | Very High                                           |
+| **Management Overhead** | High                                      | Low                                                | Moderate                                            |
+| **Scalability**         | Excellent (fine-grained control)          | Excellent (auto-scaling, often to zero)            | Good (ASG-based)                                    |
+| **Cost Model**          | Pay for cluster + nodes                   | Pay-per-request/CPU/memory (can scale to zero)     | Pay for running VMs                                 |
+| **Portability**         | High (across clouds/on-prem)              | Moderate (provider-specific features)              | Moderate (VM images, some vendor lock-in)           |
+| **Cold Starts**         | Minimal (if pods are running)             | Can be an issue for some platforms/configs         | Minimal (if instances are warm)                     |
+| **Stateful Apps**       | Supported (with persistent volumes)       | Primarily for stateless apps                       | Supported                                           |
+| **Best For**            | Complex microservices, high control needs | Stateless web apps/APIs, event-driven services     | Legacy apps, high control, specific OS/kernel needs |
+
+#### Networking
+
+- Define a Virtual Private Cloud (VPC) with public and private subnets. Place databases and sensitive resources in private subnets. Use Security Groups / Firewall Rules to control traffic flow strictly. Deploy the API behind a Load Balancer (ALB/ELB/Cloud Load Balancer).
+
+#### Container Registry
+
+- Use ECR/GCR/Artifact Registry to store Docker images securely.
+
+### Scalability & Performance
+
+#### Architectural Approach (Decoupling, Statelessness)
+
+- The asynchronous architecture with a message queue is fundamental for scaling. It allows the API and workers to scale independently based on their specific loads.
+- Design the API and worker services to be as stateless as possible. Store state in external systems (database, cache, queue) to facilitate horizontal scaling.
+
+#### Auto-Scaling
+
+- Configure auto-scaling for both the API service and the worker pool based on metrics like CPU utilization, memory usage, queue depth (for workers), or request latency. KEDA (Kubernetes Event-Driven Autoscaling) can be useful for scaling workers based on queue length. (Managed primarily via Cloud Provider/Kubernetes configuration, not directly in Python app code).
+
+#### Message Queues
+
+- Implement a durable message queue for reliable asynchronous processing.
+
+| Feature              | RabbitMQ                                      | Redis Streams                             | Cloud Queues (SQS, Pub/Sub)                           |
+| :------------------- | :-------------------------------------------- | :---------------------------------------- | :---------------------------------------------------- |
+| **Protocol Support** | AMQP, MQTT, STOMP etc.                        | Custom Redis protocol                     | HTTP/SDK based                                        |
+| **Persistence**      | High (configurable)                           | Moderate (configurable, can be in-memory) | High (managed by cloud provider)                      |
+| **Complexity**       | Moderate to High (self-managed)               | Low to Moderate (if Redis already in use) | Low (fully managed)                                   |
+| **Scalability**      | Good (clustering)                             | Good (Redis Cluster)                      | Excellent (auto-scaling by provider)                  |
+| **Feature Set**      | Rich (routing, exchanges, dead-letter queues) | Simpler (consumer groups, persistence)    | Varies (standard/FIFO, dead-letter, pub/sub patterns) |
+| **Ecosystem**        | Mature, wide language support                 | Growing, good for Redis users             | Excellent integration with cloud services             |
+| **Cost**             | Self-managed (infra costs)                    | Self-managed (infra costs)                | Pay-per-use, potentially cost-effective               |
+| **Best For**         | Complex routing, on-prem/hybrid               | Simpler queuing within Redis eco-system   | Cloud-native, ease of use, scalability                |
+
+#### Worker Orchestration
+
+- Decouple API ingestion from processing using worker services.
+
+| Feature              | Celery (+ RabbitMQ/Redis)                        | Kubernetes Jobs/CronJobs                | Serverless Functions (e.g., Lambda, Cloud Functions) | KEDA-scaled Deployments (on K8s)             |
+| :------------------- | :----------------------------------------------- | :-------------------------------------- | :--------------------------------------------------- | :------------------------------------------- |
+| **Execution Model**  | Long-running workers polling queue               | Batch jobs, scheduled tasks             | Event-driven, short-lived                            | Event-driven scaling of containers           |
+| **Complexity**       | Moderate                                         | Moderate to High (Kubernetes knowledge) | Low to Moderate                                      | High (Kubernetes + KEDA)                     |
+| **Scalability**      | Good (manual/custom scaling of workers)          | Good (K8s scaling)                      | Excellent (auto-scales based on events)              | Excellent (event-driven scaling)             |
+| **State Management** | Workers can be stateful (not ideal) or stateless | Primarily for stateless tasks           | Strictly stateless                                   | Stateless containers preferred               |
+| **Cost**             | Pay for running workers (VMs/containers)         | Pay for K8s cluster + job resources     | Pay-per-invocation/duration                          | Pay for K8s cluster + scaled resources       |
+| **Ecosystem**        | Python-centric, mature                           | Cloud-native, language-agnostic         | Cloud-native, language support varies                | Cloud-native, K8s ecosystem                  |
+| **Use Case**         | General async tasks, long polling                | Batch processing, scheduled tasks       | Short tasks, event processing                        | Scaling workers based on queue length/events |
+
+#### Database Scaling & Pooling
+
+- Use managed database services with read replicas. Implement connection pooling (e.g., using PgBouncer or SQLAlchemy's built-in pooling) to manage database connections efficiently. Consider sharding or partitioning strategies if metadata grows extremely large.
+
+#### CDN
+
+- If serving a frontend or static API documentation, use a Content Delivery Network (CDN) like CloudFront or Cloudflare to cache assets closer to users. (Infrastructure configuration).
 
 ### Robustness & Reliability
 
-- **Health Checks:** Implement comprehensive liveness and readiness probes for API instances and workers within the container orchestrator (Kubernetes, ECS). Readiness probes should ensure the service is fully initialized (e.g., ML models loaded) before receiving traffic. Liveness probes confirm the service is still running.
-
-  ```python
-  # Example: Basic FastAPI Liveness/Readiness Endpoint (in api/health.py)
-  from fastapi import APIRouter, Response, status
-
-  router = APIRouter()
-
-  # In a real scenario, readiness might check DB connections, model loading status etc.
-  _SERVICE_READY = True # Simplified global state for demo
-
-  @router.get("/v1/health/live", status_code=status.HTTP_204_NO_CONTENT, tags=["Health"])
-  async def check_liveness() -> Response:
-      """Basic liveness check."""
-      return Response(status_code=status.HTTP_204_NO_CONTENT) # Service is running
-
-  @router.get("/v1/health/ready", status_code=status.HTTP_204_NO_CONTENT, tags=["Health"])
-  async def check_readiness() -> Response:
-      """Checks if the service is ready to accept traffic."""
-      if _SERVICE_READY:
-          # Check essential dependencies: DB connection, models loaded etc.
-          # Example: await check_database_connection()
-          return Response(status_code=status.HTTP_204_NO_CONTENT)
-      else:
-          # Service not ready, return 503 Service Unavailable
-          return Response(content="Service not ready", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
-
-  # In main application setup (e.g., api/__init__.py):
-  # app.include_router(health_router, prefix="/service-status") # Or similar base path
-  ```
-
-- **Distributed Tracing:** Implement distributed tracing (e.g., using Datadog, OpenTelemetry with Jaeger, AWS X-Ray, Google Cloud Trace) to track requests across the API, queue, and workers for easier debugging of performance bottlenecks and errors.
-
-  ```python
-  # Example: Conceptual Middleware for Trace ID Propagation (using contextvars)
-  import uuid
-  import contextvars
-  from fastapi import Request, Response
-  from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-
-  trace_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("trace_id", default=None)
-
-  class TraceIdMiddleware(BaseHTTPMiddleware):
-      async def dispatch(
-          self, request: Request, call_next: RequestResponseEndpoint
-      ) -> Response:
-          # Get trace ID from header or generate a new one
-          trace_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-          trace_id_var.set(trace_id) # Store in context var for access within the request
-
-          response = await call_next(request)
-          response.headers["X-Request-ID"] = trace_id_var.get() # Add to response header
-          trace_id_var.set(None) # Reset for next request
-          return response
-
-  # In main application setup (e.g., api/__init__.py):
-  # from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-  # app.add_middleware(TraceIdMiddleware)
-  # FastAPIInstrumentor.instrument_app(app) # Example using OpenTelemetry library
-  ```
-
-- **Idempotency:** Design worker tasks and API endpoints to be idempotent where possible, especially for operations involving external state changes, to handle retries safely. This often involves checking for a unique idempotency key provided by the client.
-
-  ```python
-  # Example: Conceptual Idempotency Check in FastAPI endpoint
-  from fastapi import APIRouter, Request, Response, status, HTTPException, Depends
-  from typing import Annotated
-
-  router = APIRouter()
-
-  # Assume a simple in-memory store for processed idempotency keys for demo
-  PROCESSED_REQUESTS = set()
-
-  async def check_idempotency_key(idempotency_key: Annotated[str | None, Depends(lambda request: request.headers.get("Idempotency-Key"))]):
-      if not idempotency_key:
-          raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Idempotency-Key header required")
-
-      if idempotency_key in PROCESSED_REQUESTS:
-          # Request already processed, return stored result or success indication
-          # In a real system, you might fetch the previous response from a store
-          raise HTTPException(status_code=status.HTTP_200_OK, detail="Request already processed") # Or return the actual previous result
-
-      # Mark key as being processed (needs locking in concurrent env)
-      # PROCESSED_REQUESTS.add(idempotency_key) # Add after successful processing normally
-
-      return idempotency_key
-
-  @router.post("/v1/submit-job", status_code=status.HTTP_202_ACCEPTED)
-  async def submit_job(
-      request: Request,
-      idempotency_key: Annotated[str, Depends(check_idempotency_key)]
-  ):
-      # Process the job...
-      job_result = {"status": "processing", "job_id": "123"}
-
-      # After successful processing, store the result associated with the key
-      # and add the key to processed set permanently
-      PROCESSED_REQUESTS.add(idempotency_key)
-      # store_result(idempotency_key, job_result)
-
-      return job_result
-  ```
-
-- **Graceful Shutdown:** Implement graceful shutdown logic (e.g., using FastAPI's `lifespan` events, `signal` handlers in workers) to finish processing in-flight requests/tasks before terminating during deployments or scaling events.
-
-  ```python
-  # Example: FastAPI Lifespan for resource cleanup
-  from contextlib import asynccontextmanager
-  from fastapi import FastAPI
-  # Assume asyncpg_pool is an initialized database connection pool
-
-  @asynccontextmanager
-  async def lifespan(app: FastAPI):
-      # Code to run on startup:
-      print("Application startup: Connecting to resources...")
-      # await connect_to_database()
-      # load_ml_models()
-      # Example: Initialize DB pool (replace with your actual pool logic)
-      # global asyncpg_pool
-      # asyncpg_pool = await asyncpg.create_pool(dsn="postgresql://user:pass@host:port/db")
-      print("Resources initialized.")
-      yield
-      # Code to run on shutdown:
-      print("Application shutdown: Cleaning up resources...")
-      # if asyncpg_pool:
-      #     await asyncpg_pool.close()
-      #     print("Database pool closed.")
-      # await close_other_connections()
-      print("Cleanup finished.")
-
-  # In main application setup (e.g., api/__init__.py):
-  # app = FastAPI(lifespan=lifespan)
-  ```
-
-- **Incident Response:** Have a clear plan for monitoring, alerting, and responding to production incidents.
-
-### Scalability
-
-- **Auto-Scaling:** Configure auto-scaling for both the API service and the worker pool based on metrics like CPU utilization, memory usage, queue depth (for workers), or request latency. KEDA (Kubernetes Event-Driven Autoscaling) can be useful for scaling workers based on queue length. (Managed primarily via Cloud Provider/Kubernetes configuration, not directly in Python app code).
-- **Decoupling:** The asynchronous architecture with a message queue is fundamental for scaling. It allows the API and workers to scale independently based on their specific loads.
-
-  ```python
-  # Example: Conceptual Task Publishing to a Queue (e.g., Redis Streams or Pub/Sub)
-  import json
-  # Assume redis_client is an initialized Redis client (e.g., redis-py async client)
-  # Assume pubsub_publisher is an initialized GCP Pub/Sub client
-
-  QUEUE_NAME = "classification_jobs" # Example Redis Stream name or Pub/Sub topic
-
-  async def publish_classification_task(job_details: dict):
-      """Publishes a job to the message queue."""
-      message_body = json.dumps(job_details).encode('utf-8')
-
-      try:
-          # --- Example using Redis Streams (requires redis-py) ---
-          # await redis_client.xadd(QUEUE_NAME, {"data": message_body})
-
-          # --- Example using GCP Pub/Sub (requires google-cloud-pubsub) ---
-          # future = pubsub_publisher.publish(f"projects/my-project/topics/{QUEUE_NAME}", message_body)
-          # message_id = await future # Wait for publish confirmation
-
-          print(f"Published task for job ID: {job_details.get('job_id', 'N/A')}")
-          # return message_id # Or stream ID for Redis
-
-      except Exception as e:
-          # Handle publishing error (log, potentially retry)
-          print(f"Error publishing task: {e}")
-          raise
-
-  # Called from an API endpoint after validation:
-  # await publish_classification_task({"job_id": "xyz789", "file_uri": "s3://bucket/file.pdf"})
-  ```
-
-- **Database Scaling:** Use managed database services with read replicas. Implement connection pooling (e.g., using PgBouncer or SQLAlchemy's built-in pooling) to manage database connections efficiently. Consider sharding or partitioning strategies if metadata grows extremely large.
-
-  ```python
-  # Example: Basic Connection Pooling with asyncpg (illustrative)
-  import asyncpg
-
-  DB_POOL = None
-
-  async def get_db_connection():
-      """Dependency function to get a connection from the pool."""
-      global DB_POOL
-      if DB_POOL is None:
-          # Handle initialization error or ensure pool is created at startup
-          raise RuntimeError("Database pool not initialized")
-      async with DB_POOL.acquire() as connection:
-          yield connection # Provide the connection to the endpoint/caller
-
-  async def initialize_db_pool():
-      """Call this during application startup (e.g., in lifespan event)."""
-      global DB_POOL
-      try:
-          DB_POOL = await asyncpg.create_pool(
-              user='db_user', password='db_password',
-              database='app_db', host='127.0.0.1', port=5432,
-              min_size=5,  # Minimum number of connections in the pool
-              max_size=20  # Maximum number of connections in the pool
-          )
-          print("Database connection pool initialized.")
-      except Exception as e:
-          print(f"Failed to initialize database pool: {e}")
-          # Handle error appropriately (e.g., prevent app start)
-
-  async def close_db_pool():
-      """Call this during application shutdown (e.g., in lifespan event)."""
-      global DB_POOL
-      if DB_POOL:
-          await DB_POOL.close()
-          print("Database connection pool closed.")
-
-  # --- Usage in a FastAPI endpoint ---
-  # from fastapi import Depends
-  #
-  # @router.get("/items/{item_id}")
-  # async def read_item(item_id: int, db: asyncpg.Connection = Depends(get_db_connection)):
-  #     result = await db.fetchrow("SELECT * FROM items WHERE id = $1", item_id)
-  #     return result
-  ```
-
-- **Stateless Services:** Design the API and worker services to be as stateless as possible. Store state in external systems (database, cache, queue) to facilitate horizontal scaling. (Architectural principle, not a specific code snippet).
-- **CDN:** If serving a frontend or static API documentation, use a Content Delivery Network (CDN) like CloudFront or Cloudflare to cache assets closer to users. (Infrastructure configuration).
-
-### Security
-
-- **IAM Best Practices:** Follow the principle of least privilege when configuring IAM roles/permissions for services and users interacting with cloud resources. Use service accounts/instance profiles instead of embedding credentials. (Cloud configuration, use SDKs like `boto3` or `google-cloud-python` which often automatically pick up credentials from the environment).
-- **Secrets Management:** Store all sensitive configuration (API keys, database passwords, signing keys) securely using AWS Secrets Manager, GCP Secret Manager, or HashiCorp Vault. Inject secrets into applications at runtime, not in Docker images or environment variables directly visible in the orchestrator. For local development, `python-dotenv` is common.
-
-  ```python
-  # Example: Using python-dotenv for local development secrets
-  import os
-  from dotenv import load_dotenv
-
-  # Load variables from a .env file in the project root (or specified path)
-  # Typically called once at application startup
-  load_dotenv()
-
-  # Access secrets stored in the .env file via environment variables
-  DATABASE_URL = os.getenv("DATABASE_URL")
-  API_SECRET_KEY = os.getenv("API_SECRET_KEY")
-
-  # In production, environment variables would be injected by the orchestrator
-  # or fetched from a secrets manager service using its SDK.
-  # Example conceptual fetch (SDK details vary):
-  # import boto3 # Example for AWS
-  # secrets_client = boto3.client('secretsmanager')
-  # secret_value = secrets_client.get_secret_value(SecretId='prod/database/url')['SecretString']
-  # DATABASE_URL = secret_value
-  ```
-
-- **Network Security:** Use security groups/firewall rules to restrict traffic between services to only necessary ports and protocols. Place public-facing services behind a Web Application Firewall (WAF) like AWS WAF or Cloud Armor for protection against common web exploits (SQLi, XSS). Implement DDoS protection. (Infrastructure configuration).
-- **Dependency Scanning:** Integrate tools like `pip-audit`, Snyk, or GitHub Dependabot into the CI/CD pipeline to scan for vulnerabilities in Python dependencies. Generate and store Software Bill of Materials (SBOM). (CI/CD configuration).
-- **Input Validation:** Apply rigorous input validation at the API boundary (already partially done with Pydantic and `validate_file`) to prevent injection attacks or malformed data propagation. FastAPI with Pydantic models inherently provides strong input validation.
-
-  ```python
-  # Example: Pydantic models enforce input validation in FastAPI
-  from fastapi import FastAPI
-  from pydantic import BaseModel, Field, EmailStr
-
-  app = FastAPI()
-
-  class UserInput(BaseModel):
-      username: str = Field(..., min_length=3, max_length=50)
-      email: EmailStr # Built-in validation for email format
-      age: int | None = Field(default=None, ge=18, le=120) # Optional, with range validation
-
-  @app.post("/register/")
-  async def register_user(user_data: UserInput):
-      # If the request body doesn't match the UserInput model,
-      # FastAPI automatically returns a 422 Unprocessable Entity error.
-      # No need for manual validation code here for the structure/types.
-      print(f"Registering user: {user_data.username}")
-      # ... process registration ...
-      return {"message": "User registered successfully"}
-  ```
-
-- **Encryption:**
-
-  - **In Transit:** Enforce HTTPS for all external communication (API Gateway, Load Balancer). Use TLS for internal communication between services where necessary. (Infrastructure configuration).
-  - **At Rest:** Enable encryption for data stored in Object Storage (SSE-S3/SSE-GCS or CMEK) and managed databases. Consider application-level encryption for highly sensitive data within files if required.
-
-  ```python
-  # Example: Conceptual Application-Level Encryption using 'cryptography' library
-  from cryptography.fernet import Fernet
-
-  # --- Key Management (Crucial! Store keys securely, e.g., Secrets Manager) ---
-  # Generate a key ONCE and store it safely:
-  # key = Fernet.generate_key()
-  # Store 'key' securely! Avoid hardcoding.
-  # Load the key from secure storage/environment variable:
-  # ENCRYPTION_KEY = os.getenv("APP_ENCRYPTION_KEY").encode() # Must be bytes
-  # cipher_suite = Fernet(ENCRYPTION_KEY)
-
-  # --- Assume cipher_suite is initialized with the loaded key ---
-
-  def encrypt_data(data: bytes, cipher_suite: Fernet) -> bytes:
-      """Encrypts byte data."""
-      if not isinstance(data, bytes):
-          raise TypeError("Data must be bytes for encryption")
-      return cipher_suite.encrypt(data)
-
-  def decrypt_data(encrypted_data: bytes, cipher_suite: Fernet) -> bytes:
-      """Decrypts byte data."""
-      if not isinstance(encrypted_data, bytes):
-          raise TypeError("Encrypted data must be bytes for decryption")
-      try:
-          return cipher_suite.decrypt(encrypted_data)
-      except Exception as e: # Catch specific cryptography errors like InvalidToken
-          print(f"Decryption failed: {e}")
-          # Handle error appropriately (e.g., log, return error indicator)
-          raise # Or return None, depending on desired behavior
-
-  # --- Usage Example ---
-  # sensitive_info = b"Patient ID: 12345, Diagnosis: Confidential"
-  # Assume cipher_suite is loaded correctly
-  # encrypted_info = encrypt_data(sensitive_info, cipher_suite)
-  # print(f"Encrypted: {encrypted_info}")
-  # Store encrypted_info in DB or file
-
-  # Later, when retrieving:
-  # retrieved_encrypted = get_encrypted_data_from_db(...)
-  # decrypted_info = decrypt_data(retrieved_encrypted, cipher_suite)
-  # print(f"Decrypted: {decrypted_info.decode()}") # Decode if it was originally string
-  ```
-
-- **Auditing & Pen Testing:** Conduct regular security audits and penetration tests to identify vulnerabilities. (Process and tooling, not specific Python code).
+#### Health Checks
+
+- Implement comprehensive liveness and readiness probes for API instances and workers within the container orchestrator (Kubernetes, ECS). Readiness probes should ensure the service is fully initialized (e.g., ML models loaded) before receiving traffic. Liveness probes confirm the service is still running.
+
+#### Redundancy
+
+- Deploy services across multiple Availability Zones (AZs) for high availability. Configure auto-scaling groups or managed services to handle AZ failures.
+
+#### Distributed Tracing
+
+- Implement distributed tracing to track requests across the API, queue, and workers for easier debugging of performance bottlenecks and errors.
+
+| Feature            | OpenTelemetry (Collector + Jaeger/Zipkin)   | Cloud-Native (AWS X-Ray, GCP Cloud Trace, Azure Monitor)  | SaaS (Datadog, New Relic)   |
+| :----------------- | :------------------------------------------ | :-------------------------------------------------------- | :-------------------------- |
+| **Vendor Lock-in** | Low (Open Standard)                         | High                                                      | Moderate to High            |
+| **Complexity**     | Moderate to High (setup collector, backend) | Low to Moderate (auto-instrumentation often available)    | Low (Agent-based)           |
+| **Cost**           | Self-managed (infra for backend)            | Pay-per-trace/data ingested                               | Subscription-based          |
+| **Features**       | Flexible, customizable                      | Good integration with cloud services, basic visualization | Rich UIs, APM, alerting     |
+| **Ecosystem**      | Growing, broad language support             | Tied to cloud provider ecosystem                          | Mature, broad support       |
+| **Data Ownership** | Full control                                | Data within cloud provider                                | Data with SaaS vendor       |
+| **Best For**       | Avoiding lock-in, custom needs              | Deep integration with a specific cloud provider           | All-in-one APM, ease of use |
+
+#### Idempotency
+
+- Design worker tasks and API endpoints to be idempotent where possible, especially for operations involving external state changes, to handle retries safely. This often involves checking for a unique idempotency key provided by the client.
+
+#### Graceful Shutdown
+
+- Implement graceful shutdown logic (e.g., using FastAPI's `lifespan` events, `signal` handlers in workers) to finish processing in-flight requests/tasks before terminating during deployments or scaling events.
+
+#### Incident Response
+
+- Have a clear plan for monitoring, alerting, and responding to production incidents.
+
+### Security Considerations for Production
+
+#### IAM Best Practices
+
+- Follow the principle of least privilege when configuring IAM roles/permissions for services and users interacting with cloud resources. Use service accounts/instance profiles instead of embedding credentials. (Cloud configuration, use SDKs like `boto3` or `google-cloud-python` which often automatically pick up credentials from the environment).
+
+#### Secrets Management
+
+- Store all sensitive configuration (API keys, database passwords, signing keys) securely.
+
+| Feature          | Cloud Provider (AWS SM, GCP SM) | HashiCorp Vault (Self or Cloud Hosted)                    | `python-dotenv` / Env Vars |
+| :--------------- | :------------------------------ | :-------------------------------------------------------- | :------------------------- |
+| **Security**     | High (managed by cloud)         | Very High (strong encryption, audit)                      | Low (for production)       |
+| **Integration**  | Excellent with cloud services   | Good (SDKs, APIs)                                         | Simple (OS level)          |
+| **Complexity**   | Low to Moderate                 | Moderate to High (to manage Vault)                        | Very Low                   |
+| **Cost**         | Pay-per-secret/API call         | Software is open source; hosting/managed service has cost | Free                       |
+| **Features**     | Versioning, rotation, IAM       | Dynamic secrets, leasing, broad auth methods, PKI         | Basic key-value            |
+| **Use Case**     | Cloud-native apps               | Hybrid/multi-cloud, advanced security needs               | Local development ONLY     |
+| **Auditability** | Good (via cloud logs)           | Excellent (detailed audit logs)                           | None                       |
+
+#### Network Security
+
+- Use security groups/firewall rules to restrict traffic between services to only necessary ports and protocols. Place public-facing services behind a Web Application Firewall (WAF) like AWS WAF or Cloud Armor for protection against common web exploits (SQLi, XSS). Implement DDoS protection. (Infrastructure configuration).
+
+#### Dependency Scanning & SBOM
+
+- Integrate tools like `pip-audit`, Snyk, or GitHub Dependabot into the CI/CD pipeline to scan for vulnerabilities in Python dependencies. Generate and store Software Bill of Materials (SBOM). (CI/CD configuration).
+
+#### Input Validation
+
+- Apply rigorous input validation at the API boundary (already partially done with Pydantic and `validate_file`) to prevent injection attacks or malformed data propagation. FastAPI with Pydantic models inherently provides strong input validation.
+
+#### Encryption
+
+- **In Transit:** Enforce HTTPS for all external communication (API Gateway, Load Balancer). Use TLS for internal communication between services where necessary. (Infrastructure configuration).
+- **At Rest:** Enable encryption for data stored in Object Storage (SSE-S3/SSE-GCS or CMEK) and managed databases.
+- **Application-Level:** Consider application-level encryption for highly sensitive data within files if required.
+
+#### Auditing & Pen Testing
+
+- Conduct regular security audits and penetration tests to identify vulnerabilities. (Process and tooling, not specific Python code).
 
 ### CI/CD for Production
 
-- **Environment Promotion:** Implement separate CI/CD pipelines for different environments (e.g., development, staging, production). Promote artifacts (Docker images, Terraform plans) through environments after successful testing and approvals.
-- **Deployment Strategies:** Use strategies like Blue/Green or Canary deployments for production releases to minimize downtime and risk. Automate rollback procedures.
-- **Infrastructure Automation:** Integrate Terraform plan/apply steps into the CI/CD pipeline, potentially requiring manual approval for production changes. Use tools like `tfsec` or `checkov` to scan Terraform code for security issues.
-- **Testing in Pipeline:** Include automated integration tests and potentially end-to-end tests against a staging environment within the CI/CD pipeline before deploying to production.
-- **Secrets in CI/CD:** Use secure methods (like OIDC connectors or temporary credentials) for CI/CD pipelines to access cloud resources or secrets managers, avoiding long-lived static credentials.
+#### Environment Promotion
+
+- Implement separate CI/CD pipelines for different environments (e.g., development, staging, production). Promote artifacts (Docker images, Terraform plans) through environments after successful testing and approvals.
+
+#### Deployment Strategies
+
+- Use strategies like Blue/Green or Canary deployments for production releases to minimize downtime and risk. Automate rollback procedures.
+
+#### Infrastructure Automation
+
+- Integrate Terraform plan/apply steps into the CI/CD pipeline, potentially requiring manual approval for production changes. Use tools like `tfsec` or `checkov` to scan Terraform code for security issues.
+
+#### Testing in Pipeline
+
+- Include automated integration tests and potentially end-to-end tests against a staging environment within the CI/CD pipeline before deploying to production.
+
+#### Secrets in CI/CD
+
+- Use secure methods (like OIDC connectors or temporary credentials) for CI/CD pipelines to access cloud resources or secrets managers, avoiding long-lived static credentials.
 
 ### Data Management & Persistence
 
-- **Database Backups:** Configure automated backups for the production database (e.g., RDS/Cloud SQL point-in-time recovery and snapshots). Regularly test the restore process. (Database/Infrastructure configuration).
-- **Object Storage Lifecycle:** Define lifecycle policies for files stored in S3/GCS to automatically transition older data to cheaper storage tiers (e.g., Infrequent Access, Glacier/Archive) or delete it after a defined retention period. (Cloud storage configuration).
-- **Data Retention:** Establish clear data retention policies for job metadata, classification results, and potentially the raw files, based on business needs and compliance requirements. Implement automated cleanup jobs.
+#### Database Backups
 
-  ```python
-  # Example: Conceptual Async Cleanup Task Function
-  import asyncio
-  import datetime
-  # Assume db_pool is an initialized asyncpg pool (or similar DB interface)
+- Configure automated backups for the production database (e.g., RDS/Cloud SQL point-in-time recovery and snapshots). Regularly test the restore process. (Database/Infrastructure configuration).
 
-  RETENTION_DAYS = 90
+#### Object Storage Lifecycle
 
-  async def run_cleanup_job():
-      """Periodically cleans up old job records and associated data."""
-      while True:
-          print("Running cleanup job...")
-          cutoff_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=RETENTION_DAYS)
+- Define lifecycle policies for files stored in S3/GCS to automatically transition older data to cheaper storage tiers (e.g., Infrequent Access, Glacier/Archive) or delete it after a defined retention period. (Cloud storage configuration).
 
-          try:
-              async with db_pool.acquire() as conn:
-                  async with conn.transaction():
-                      # 1. Find old job records
-                      old_jobs = await conn.fetch(
-                          "SELECT job_id, file_storage_path FROM classification_jobs WHERE completed_at < $1",
-                          cutoff_date
-                      )
+#### Data Retention & Cleanup
 
-                      if not old_jobs:
-                          print("No old jobs found to clean up.")
-                          continue
+- Establish clear data retention policies for job metadata, classification results, and potentially the raw files, based on business needs and compliance requirements. Implement automated cleanup jobs.
 
-                      job_ids_to_delete = [job['job_id'] for job in old_jobs]
-                      print(f"Found {len(job_ids_to_delete)} jobs older than {cutoff_date} to delete.")
+#### Disaster Recovery
 
-                      # 2. Delete associated files from object storage (implement this logic)
-                      # for job in old_jobs:
-                      #     if job['file_storage_path']:
-                      #         await delete_file_from_s3_gcs(job['file_storage_path'])
-
-                      # 3. Delete job records from the database
-                      deleted_count = await conn.execute(
-                          "DELETE FROM classification_jobs WHERE job_id = ANY($1::uuid[])",
-                          job_ids_to_delete
-                      )
-                      print(f"Deleted {deleted_count} job records from database.")
-
-          except Exception as e:
-              print(f"Error during cleanup job: {e}")
-              # Add proper error handling/logging
-
-          # Wait for the next run (e.g., 24 hours)
-          await asyncio.sleep(60 * 60 * 24)
-
-  # This function would typically be run as a separate scheduled task/worker
-  # or invoked periodically by a scheduler (e.g., APScheduler, Celery Beat, K8s CronJob)
-  # Example: asyncio.create_task(run_cleanup_job()) # In a long-running process
-  ```
-
-- **Disaster Recovery:** Have a documented disaster recovery plan covering data loss and service unavailability scenarios. (Process and infrastructure).
+- Have a documented disaster recovery plan covering data loss and service unavailability scenarios. (Process and infrastructure).
 
 ### Cost Optimization
 
-- **Monitoring:** Use cloud provider cost management tools (Cost Explorer, Budgets) and potentially third-party tools to monitor spending. Tag resources appropriately for cost allocation.
-- **Right-Sizing:** Regularly review resource utilization (CPU, memory, database instances) and adjust sizes to match the actual workload, avoiding over-provisioning.
-- **Storage Tiers:** Utilize appropriate storage tiers in S3/GCS based on access frequency.
-- **Spot Instances:** Consider using Spot Instances (EC2/GCP) for stateless, fault-tolerant worker tasks to significantly reduce compute costs, but implement robust handling for instance termination.
-- **Serverless:** Evaluate serverless options (Lambda/Cloud Functions, Cloud Run) where appropriate, as they can be cost-effective for event-driven or variable workloads (pay-per-use).
+#### Monitoring & Right-Sizing
 
-### Interoperability & Accessibility
+- Use cloud provider cost management tools (Cost Explorer, Budgets) and potentially third-party tools to monitor spending. Tag resources appropriately for cost allocation.
+- Regularly review resource utilization (CPU, memory, database instances) and adjust sizes to match the actual workload, avoiding over-provisioning.
 
-- **API Gateway:** Use an API Gateway (AWS API Gateway, Apigee/GCP API Gateway) to manage API keys, enforce rate limiting, handle authentication/authorization uniformly, potentially transform requests/responses, and provide a stable entry point for consumers. (Infrastructure configuration).
-- **API Versioning:** Implement a clear API versioning strategy (e.g., `/v1/`, `/v2/` in the URL path) to allow for backward-incompatible changes without breaking existing clients.
+#### Storage Tiers
 
-  ```python
-  # Example: API Versioning with FastAPI Routers
-  from fastapi import FastAPI, APIRouter
+- Utilize appropriate storage tiers in S3/GCS based on access frequency.
 
-  app = FastAPI(title="HeronAI Classifier")
+#### Spot Instances / Serverless
 
-  # --- Version 1 Router ---
-  router_v1 = APIRouter(prefix="/v1", tags=["Version 1"])
+- Consider using Spot Instances (EC2/GCP) for stateless, fault-tolerant worker tasks to significantly reduce compute costs, but implement robust handling for instance termination.
+- Evaluate serverless options (Lambda/Cloud Functions, Cloud Run) where appropriate, as they can be cost-effective for event-driven or variable workloads (pay-per-use).
 
-  @router_v1.post("/files")
-  async def upload_file_v1(file: bytes): # Simplified example
-      # ... implementation for v1 ...
-      return {"version": "v1", "message": "File processed"}
+### ML Considerations in Production
 
-  # --- Version 2 Router (Example: maybe changes response structure) ---
-  router_v2 = APIRouter(prefix="/v2", tags=["Version 2"])
+#### ML Model Tradeoffs
 
-  @router_v2.post("/documents") # Example: endpoint path changed
-  async def upload_document_v2(doc: bytes): # Example: parameter name changed
-      # ... implementation for v2 ...
-      return {"api_version": "v2", "status": "success", "doc_id": "xyz"}
+| Feature                      | Naive Bayes (Current)                  | Transformer Models (e.g., BERT, LayoutLM)                        |
+| :--------------------------- | :------------------------------------- | :--------------------------------------------------------------- |
+| **Performance**              | Moderate, fast training                | High, state-of-the-art on many NLP tasks                         |
+| **Data Needs**               | Works well with smaller data           | Typically requires larger datasets for fine-tuning               |
+| **Interpretability**         | Relatively easy to interpret           | More "black box", harder to interpret                            |
+| **Complexity**               | Simple to implement                    | Complex architecture, resource-intensive                         |
+| **Resource Usage**           | Low (CPU, memory)                      | High (GPU often needed for good performance/training)            |
+| **Contextual Understanding** | Limited (assumes feature independence) | Excellent (understands word order, context, layout for LayoutLM) |
+| **Fine-tuning**              | N/A (trained from scratch)             | Can leverage pre-trained models and fine-tune for specific tasks |
+| **Best For**                 | Baselines, simple text tasks           | Complex documents, high accuracy needs, layout-aware tasks       |
 
-  # Include routers in the main app
-  app.include_router(router_v1)
-  app.include_router(router_v2)
+#### OCR Solution Tradeoffs
 
-  # OpenAPI documentation will clearly show endpoints grouped by version/tags.
-  ```
+| Feature                     | Tesseract (Base)             | Tesseract + Preprocessing         | Cloud OCR (e.g., Google Vision AI, AWS Textract)           |
+| :-------------------------- | :--------------------------- | :-------------------------------- | :--------------------------------------------------------- |
+| **Accuracy (Clean Docs)**   | Good                         | Very Good                         | Excellent                                                  |
+| **Accuracy (Noisy/Skewed)** | Poor to Moderate             | Moderate to Good                  | Very Good to Excellent (often includes auto-preprocessing) |
+| **Cost**                    | Free (Open Source)           | Free (Open Source)                | Pay-per-use (can be significant at scale)                  |
+| **Setup Complexity**        | Moderate                     | High (image processing libraries) | Low (API integration)                                      |
+| **Customization**           | High (training data, params) | High                              | Limited (model is pre-trained)                             |
+| **Scalability**             | Self-managed                 | Self-managed                      | Managed by cloud provider, highly scalable                 |
+| **Features**                | Text extraction              | Text extraction                   | Text, tables, forms, handwriting, specialized models       |
+| **Best For**                | Simple needs, cost-sensitive | Improved accuracy on-prem         | High accuracy, complex documents, managed service          |
 
-- **Documentation:** Maintain up-to-date, comprehensive API documentation (OpenAPI spec generated by FastAPI is a good start) accessible to consumers. Consider hosting a dedicated developer portal. (FastAPI auto-generates `/docs` and `/redoc`).
-- **Frontend Integration (React/TypeScript on Vercel):**
+### Interoperability & Frontend Integration
 
-  - **CORS:** Configure Cross-Origin Resource Sharing (CORS) correctly on the FastAPI backend (or API Gateway) to allow requests from the Vercel frontend domain.
+#### API Gateway
 
-    ```python
-    # Example: Configuring CORS Middleware in FastAPI
-    from fastapi import FastAPI
-    from fastapi.middleware.cors import CORSMiddleware
+- Use an API Gateway (AWS API Gateway, Apigee/GCP API Gateway) to manage API keys, enforce rate limiting, handle authentication/authorization uniformly, potentially transform requests/responses, and provide a stable entry point for consumers. (Infrastructure configuration).
 
-    app = FastAPI()
+#### API Versioning
 
-    # Define allowed origins (replace with your Vercel frontend URL in production)
-    origins = [
-        "http://localhost:3000",  # Allow local React dev server
-        "https://your-vercel-frontend-app.vercel.app", # Your production frontend
-        # Add other origins as needed
-    ]
+- Implement a clear API versioning strategy (e.g., `/v1/`, `/v2/` in the URL path) to allow for backward-incompatible changes without breaking existing clients.
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,  # List of allowed origins
-        allow_credentials=True, # Allow cookies to be included in requests
-        allow_methods=["*"],    # Allow all standard methods (GET, POST, etc.)
-        allow_headers=["*"],    # Allow all headers
-    )
+#### API Documentation
 
-    # ... rest of your FastAPI app setup and routes ...
+- Maintain up-to-date, comprehensive API documentation (OpenAPI spec generated by FastAPI is a good start) accessible to consumers. Consider hosting a dedicated developer portal. (FastAPI auto-generates `/docs` and `/redoc`).
 
-    @app.get("/")
-    async def root():
-        return {"message": "API is running"}
-    ```
+#### Frontend Integration (CORS, Auth, API Client)
 
-  - **Authentication:** Determine how the frontend will authenticate with the backend API (e.g., passing the API key securely, using JWT tokens obtained via an auth flow). Avoid exposing static API keys directly in frontend code. (Implementation depends heavily on the chosen auth method).
-  - **API Client:** Use a robust data fetching library in React (like React Query or SWR) to handle API requests, caching, state management, and error handling effectively. (Frontend implementation detail).
+- **CORS:** Configure Cross-Origin Resource Sharing (CORS) correctly on the FastAPI backend (or API Gateway) to allow requests from the Vercel frontend domain.
+
+```python
+# Example: Configuring CORS Middleware in FastAPI
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# Define allowed origins (replace with your Vercel frontend URL in production)
+origins = [
+    "http://localhost:3000",  # Allow local React dev server
+    "https://your-vercel-frontend-app.vercel.app", # Your production frontend
+    # Add other origins as needed
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # List of allowed origins
+    allow_credentials=True, # Allow cookies to be included in requests
+    allow_methods=["*"],    # Allow all standard methods (GET, POST, etc.)
+    allow_headers=["*"],    # Allow all headers
+)
+
+# ... rest of your FastAPI app setup and routes ...
+
+@app.get("/")
+async def root():
+    return {"message": "API is running"}
+```
+
+- **Authentication:** Determine how the frontend will authenticate with the backend API (e.g., passing the API key securely, using JWT tokens obtained via an auth flow). Avoid exposing static API keys directly in frontend code. (Implementation depends heavily on the chosen auth method).
+- **API Client:** Use a robust data fetching library in React (like React Query or SWR) to handle API requests, caching, state management, and error handling effectively. (Frontend implementation detail).

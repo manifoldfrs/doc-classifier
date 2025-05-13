@@ -16,7 +16,7 @@ logger = structlog.get_logger(__name__)
 
 async def _extract_api_key(
     x_api_key: Optional[str] = Header(None),
-) -> Optional[str]:  # noqa: D401 – internal helper
+) -> Optional[str]:
     """Return the raw ``x-api-key`` header if present (case-insensitive)."""
 
     return x_api_key  # FastAPI handles header name case-insensitively
@@ -25,8 +25,8 @@ async def _extract_api_key(
 async def verify_api_key(
     api_key: Annotated[Optional[str], Depends(_extract_api_key)],
     request: Request,
-    settings: Settings = Depends(get_settings),  # noqa: B008
-) -> str | None:  # noqa: D401 – dependency signature
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> str | None:
 
     allowed = settings.allowed_api_keys
     if not allowed:  # Auth disabled – log once at DEBUG level and continue
@@ -44,6 +44,6 @@ async def verify_api_key(
             detail="Invalid or missing x-api-key header.",
         )
 
-    request.state.user = "api_key_user"  # placeholder until RBAC extension
+    request.state.user = "api_key_user"  # TODO: placeholder until RBAC extension
     logger.debug("auth_success", path=request.url.path)
     return api_key

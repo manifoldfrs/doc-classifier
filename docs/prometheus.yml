@@ -4,15 +4,6 @@
 # This **sample** `prometheus.yml` file shows how to scrape the metrics exposed
 # by the HeronAI FastAPI application (enabled when `PROMETHEUS_ENABLED=true`).
 #
-# How to use
-# ----------
-# 1. Install Prometheus locally or run it via Docker:
-#      docker run -p 9090:9090 -v "$(pwd)/docs/prometheus.yml:/etc/prometheus/prometheus.yml" \
-#         prom/prometheus
-# 2. Start the HeronAI FastAPI service (default port 8000):
-#      uvicorn src.api:app --reload
-# 3. Navigate to http://localhost:9090 to explore collected metrics.
-#
 # Notes
 # -----
 # • This config ships **scrape_interval: 5s** for fast feedback during dev –
@@ -27,27 +18,15 @@ global:
   scrape_interval: 5s # Default interval to scrape targets
   evaluation_interval: 5s
 
-# Rule files (alerts/recordings) – none supplied for the demo, but kept for
-# completeness so adding future rules only requires dropping *.yml files in the
-# directory and uncommenting the line.
-# rule_files:
-#   - "alert_rules/*.yml"
-
 scrape_configs:
-  # ---------------------------------------------------------------------------
   # HeronAI FastAPI service – exposes /metrics via prometheus_fastapi_instrumentator
-  # ---------------------------------------------------------------------------
   - job_name: "heronai_service"
-    honor_labels: true # preserve application-provided labels if any
-    metrics_path: "/metrics" # matches endpoint configured in src/api/app.py
+    honor_labels: true
+    metrics_path: "/metrics"
     static_configs:
       - targets:
-          - "localhost:8000" # Change when running inside Docker/K8s
+          - "localhost:8000"
 
-  # ---------------------------------------------------------------------------
-  # (Optional) Scrape Prometheus's own internal metrics so the server shows up
-  # under *Targets*.  Useful for verifying Prometheus health.
-  # ---------------------------------------------------------------------------
   - job_name: "prometheus"
     static_configs:
       - targets:
