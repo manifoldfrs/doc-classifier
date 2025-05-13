@@ -10,12 +10,13 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 from typing import List, Optional, Set
-from unittest.mock import patch
 
 import pytest
 
+# from src.core.config import Settings # No longer importing real Settings
 
-class MockSettings:
+
+class MockSettings:  # Does NOT inherit from real Settings
     """Mock Settings class for testing."""
 
     debug: bool = False
@@ -27,6 +28,7 @@ class MockSettings:
     allowed_api_keys: List[str] = []
 
     # File upload settings
+    # Define all fields that the application might access from settings
     allowed_extensions_raw: str = (
         "pdf,docx,xlsx,xls,csv,jpg,jpeg,png,tiff,tif,gif,bmp,eml,msg,txt"
     )
@@ -52,28 +54,44 @@ class MockSettings:
 
     # Classification confidence settings
     confidence_threshold: float = 0.65
-    early_exit_confidence: float = 0.9
+    early_exit_confidence: float = (
+        0.90  # Ensure this is >= confidence_threshold by default
+    )
 
     def __init__(self, **kwargs):
-        """Initialize with optional overrides."""
+        """Initialize with optional overrides for any attribute."""
+        # Set default values from class attributes first
+        for key, value in self.__class__.__dict__.items():
+            if not key.startswith("__") and not callable(value):
+                setattr(self, key, value)
+
+        # Then apply any kwargs, potentially validating critical ones
+        temp_confidence = kwargs.get("confidence_threshold", self.confidence_threshold)
+        temp_early_exit = kwargs.get(
+            "early_exit_confidence", self.early_exit_confidence
+        )
+
+        if temp_early_exit < temp_confidence:
+            raise ValueError("EARLY_EXIT_CONFIDENCE must be >= CONFIDENCE_THRESHOLD")
+
         for key, value in kwargs.items():
-            if key == "allowed_extensions_raw":
-                # Handle special case for extensions
-                if value == "":
-                    self.allowed_extensions = set()
-                elif value:
-                    self.allowed_extensions = {
-                        ext.strip().lower().lstrip(".")
-                        for ext in value.split(",")
-                        if ext.strip()
-                    }
-            elif key == "confidence_threshold" and "early_exit_confidence" in kwargs:
-                # Check for valid confidence thresholds
-                if kwargs["early_exit_confidence"] < value:
-                    raise ValueError(
-                        "EARLY_EXIT_CONFIDENCE must be >= CONFIDENCE_THRESHOLD"
-                    )
             setattr(self, key, value)
+
+        # If allowed_extensions_raw is provided in kwargs, re-calculate allowed_extensions
+        if "allowed_extensions_raw" in kwargs:
+            raw_value = kwargs["allowed_extensions_raw"]
+            if raw_value == "":
+                self.allowed_extensions = set()
+            elif raw_value:
+                self.allowed_extensions = {
+                    ext.strip().lower().lstrip(".")
+                    for ext in raw_value.split(",")
+                    if ext.strip()
+                }
+            else:  # raw_value is None
+                self.allowed_extensions = (
+                    set()
+                )  # Or based on a default raw string if appropriate
 
     def is_extension_allowed(self, extension: str) -> bool:
         """Check if file extension is allowed."""
@@ -85,19 +103,12 @@ class MockSettings:
 
 @pytest.fixture
 def mock_settings():
-    """Provide a mock Settings instance for tests."""
-    # Patch **both** locations where get_settings is imported so that
-    # every part of the application (including auth dependencies) receives
-    # the exact same MockSettings instance.  This avoids discrepancies where
-    # a previously-imported alias still points to the original function.
-    with (
-        patch("src.core.config.get_settings") as mock_get_core_settings,
-        patch("src.utils.auth.get_settings") as mock_get_auth_settings,
-    ):
-        settings = MockSettings()
-        mock_get_core_settings.return_value = settings
-        mock_get_auth_settings.return_value = settings
-        yield settings
+    """Provide a plain MockSettings instance. Dependency injection is handled by app.dependency_overrides in client fixtures."""
+    # REMOVED patch context managers.
+    # The client fixture should use app.dependency_overrides exclusively for integration tests.
+    settings = MockSettings()
+    yield settings
+    # Cleanup if needed, though typically not for a simple settings object.
 
 
 @pytest.fixture(autouse=True)

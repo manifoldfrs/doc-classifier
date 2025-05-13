@@ -27,6 +27,19 @@ async def verify_api_key(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> str | None:
+    """Verifies the provided API key against configured allowed keys.
+
+    Args:
+        api_key: The API key extracted from the 'x-api-key' header.
+        request: The FastAPI request object.
+        settings: Application settings, including allowed API keys.
+
+    Returns:
+        The validated API key if successful.
+
+    Raises:
+        HTTPException (401): If auth is enabled and the key is missing or invalid.
+    """
 
     allowed = settings.allowed_api_keys
     if not allowed:  # Auth disabled – log once at DEBUG level and continue

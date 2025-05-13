@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from typing import Dict
+
+import structlog
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
@@ -10,38 +13,30 @@ __all__: list[str] = [
     "router",
 ]
 
-router: APIRouter = APIRouter(
+logger = structlog.get_logger(__name__)
+
+router = APIRouter(
     prefix="/v1",
-    tags=["admin"],
-    include_in_schema=True,
+    tags=["Admin"],
     dependencies=[Depends(verify_api_key)],
 )
 
+SETTINGS_DEP: Settings = Depends(get_settings)
 
-@router.get("/health", summary="Liveness probe")
+
+@router.get("/health", response_model=Dict[str, str])
 async def health(
-    settings: Settings = Depends(get_settings),  # noqa: B008
-) -> JSONResponse:  # noqa: D401 – FastAPI path operation
-    """Return **200 OK** if the service process is responsive.
-
-    The response payload purposefully remains minimal to keep the endpoint fast
-    and to avoid leaking sensitive information.  Clients interested in richer
-    metadata should call :http:get:`/v1/version` instead.
-    """
-
-    return JSONResponse(
-        {
-            "status": "ok",
-            "commit_sha": settings.commit_sha,
-        }
-    )
+    settings: Settings = SETTINGS_DEP,
+) -> Dict[str, str]:
+    """Return service health status."""
+    return {"status": "ok", "commit_sha": settings.commit_sha or "unknown"}
 
 
 @router.get("/version", summary="Application version information")
 async def version(
     request: Request,
-    settings: Settings = Depends(get_settings),  # noqa: B008
-) -> JSONResponse:  # noqa: D401 – FastAPI path operation
+    settings: Settings = SETTINGS_DEP,
+) -> JSONResponse:
     """Return the semantic *application* version plus the git commit SHA.
 
     The FastAPI *application* instance exposes its declared version via

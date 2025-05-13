@@ -23,11 +23,7 @@ def _parse_api_keys(current_keys: List[str]) -> List[str]:
             return _parse_csv_str(env_api_keys)
         # If current_keys is already populated (e.g., from direct instantiation),
         # the environment variable is ignored to prevent accidental overrides.
-        # This behaviour differs slightly from the original where env could override
-        # Pydantic's direct value, but is safer.
         return current_keys
-    # If env var is not set, return the current_keys (might be default empty list)
-    # or ensure it's empty if the env var was explicitly removed.
     return [] if env_api_keys is None else current_keys
 
 
@@ -35,15 +31,12 @@ def _derive_allowed_extensions(
     current_set: Set[str], raw_extensions: Optional[str]
 ) -> Set[str]:
     """Derive the final set of allowed extensions."""
-    # If the set is already populated (e.g., via ALLOWED_EXTENSIONS env var), use it.
     if current_set:
         return current_set
 
-    # Otherwise, compute from the raw string (ALLOWED_EXTENSIONS_RAW)
     if raw_extensions is None or raw_extensions == "":
         return set()  # Nothing configured or explicitly empty -> disallow all
 
-    # Parse the raw comma-separated string
     return {
         ext.strip().lower().lstrip(".")
         for ext in raw_extensions.split(",")
@@ -92,9 +85,7 @@ class Settings(BaseSettings):
     max_file_size_mb: int = 10
     max_batch_size: int = 50
 
-    # Classification confidence settings
     confidence_threshold: float = 0.65
-    # Early-exit activates when any classification stage reaches this confidence.
     # Default tightened to 0.95 to reduce false-positives
     early_exit_confidence: float = 0.95
 
@@ -111,34 +102,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def parse_settings(self) -> "Settings":
-        """Process all settings after validation."""
-        # ------------------------------------------------------------------
-        # API-key parsing – convert comma-separated strings to list[str].
-        # ------------------------------------------------------------------
-
-        env_api_keys = os.environ.get("ALLOWED_API_KEYS")
-        if env_api_keys:
-            if not self.allowed_api_keys:
-                self.allowed_api_keys = _parse_csv_str(env_api_keys)
-        else:
-            # Environment variable removed ➜ ensure list is empty (important
-            # for tests that explicitly `delenv('ALLOWED_API_KEYS')`).
-            self.allowed_api_keys = []
-
-        # ------------------------------------------------------------------
-        # Derive *allowed_extensions* – honour explicit ``ALLOWED_EXTENSIONS``
-        # from the environment first.  Only fall back to ``allowed_extensions_raw``
-        # when the set is still empty.  This guarantees that developers can
-        # override the defaults via *.env* without the value being silently
-        # overwritten by the *raw* fallback.
-
+        """Process settings after initial validation (e.g., derive complex fields)."""
         if not self.allowed_extensions:
-            # No explicit ``ALLOWED_EXTENSIONS`` provided – compute from *raw*.
+            # No explicit ``ALLOWED_EXTENSIONS`` provided via env var – compute from *raw*.
             if self.allowed_extensions_raw is None:
                 # Nothing configured – disallow all extensions by default.
                 self.allowed_extensions = set()
             else:
-                # Empty string means "no extensions allowed"; otherwise parse.
+                # Empty string means "no extensions allowed"; otherwise parse raw string.
                 self.allowed_extensions = {
                     ext.strip().lower().lstrip(".")
                     for ext in self.allowed_extensions_raw.split(",")
@@ -180,10 +151,26 @@ class Settings(BaseSettings):
         """Allow comma-separated string in addition to a proper JSON array."""
 
         if isinstance(v, str):
+            # If it looks like a JSON array string (due to pre-processing or direct env var),
+            # parse it as JSON.
+            stripped_v = v.strip()
+            if stripped_v.startswith("[") and stripped_v.endswith("]"):
+                try:
+                    loaded_json = json.loads(stripped_v)
+                    if isinstance(loaded_json, list):
+                        # Ensure all elements are strings, as API keys should be.
+                        return [str(x).strip() for x in loaded_json if str(x).strip()]
+                except json.JSONDecodeError:
+                    pass  # Fall through to _parse_csv_str for non-JSON or malformed JSON strings
+
             return _parse_csv_str(v)
+
         if v is None:
-            return []
-        # If validation has already produced a proper list[str] just return it.
+            return []  # If env var is not set at all.
+
+        if isinstance(v, list):
+            return [str(x).strip() for x in v if str(x).strip()]
+
         return cast(List[str], v)
 
     @field_validator("allowed_extensions", mode="before")
@@ -251,6 +238,4 @@ def _clear_settings_cache() -> None:  # noqa: D401 – helper for tests
     _CACHED_SETTINGS = None
 
 
-# Expose the helper so tests can call ``get_settings.cache_clear()`` exactly as
-# before, preserving the public contract while switching to a custom cache.
 get_settings.cache_clear = _clear_settings_cache  # type: ignore[attr-defined]
