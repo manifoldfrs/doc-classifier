@@ -1,0 +1,71 @@
+# Vercel Ignore File
+
+# Git / Version Control
+.git/
+.gitignore
+
+# Python Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python Cache / Compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+
+# Documentation
+docs/
+README.md
+GUIDELINES.md
+
+# Datasets (Assuming not needed at runtime)
+datasets/
+# If model.pkl IS needed at runtime, comment out the line above
+# and ensure the model path in src/classification/model.py is correct
+# relative to the deployment root.
+
+# Sample Files (Assuming not needed at runtime)
+files/
+
+# Diagrams
+diagrams/
+
+# Tests
+tests/
+pytest.ini
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# Scripts
+scripts/
+
+# Local Development / Tooling
+.env*
+.env.*
+!.env.example
+.pre-commit-config.yaml
+.python-version
+Dockerfile
+docker-compose.yml
+prometheus.yml
+
+# CI/CD
+.github/
+
+# Editor/IDE specific
+.idea/
+.vscode/
+.cursorrules
+
+# OS specific
+.DS_Store
+
+# Other build/dist artifacts
+build/
+dist/
+*.egg-info/
+*.egg
