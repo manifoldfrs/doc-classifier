@@ -79,17 +79,19 @@ async def upload_and_classify_files(  # noqa: D401 – FastAPI handler
 
     request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
     for res in results:
-        # `object.__setattr__` works because the model is frozen but mutable via
-        # the private API – safe within server-side code.
-        object.__setattr__(res, "request_id", request_id)
+        # Ensure the request_id from the route invocation is set on each result item,
+        # overriding the Pydantic model's default factory if it was used.
+        # Pydantic V2: direct assignment works.
+        res.request_id = request_id
 
     logger.info(
         "batch_classification_complete",
         batch_size=len(files),
         request_id=request_id,
     )
-    # FastAPI automatically serialises Pydantic models, but we return an explicit
-    # JSONResponse so we can attach the request_id header.
-    response = JSONResponse(content=[r.dict(by_alias=True) for r in results])
+
+    # For Pydantic V2, use model_dump()
+    response_payload = [r.model_dump(by_alias=True) for r in results]
+    response = JSONResponse(content=response_payload)
     response.headers["X-Request-ID"] = request_id
     return response
