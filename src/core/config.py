@@ -76,17 +76,15 @@ class Settings(BaseSettings):
     commit_sha: Optional[str] = None
     prometheus_enabled: bool = True
 
+    # Fallbacks, pydantic will look for these in .env first
     allowed_api_keys: List[str] = Field(default_factory=list)
 
-    allowed_extensions_raw: Optional[str] = (
-        "pdf,docx,xlsx,xls,csv,jpg,jpeg,png,tiff,tif,gif,bmp,eml,msg,txt"
-    )
+    allowed_extensions_raw: Optional[str] = "pdf,docx,csv,jpg,jpeg,png"
     allowed_extensions: Set[str] = set()
     max_file_size_mb: int = 10
     max_batch_size: int = 50
 
     confidence_threshold: float = 0.65
-    # Default tightened to 0.95 to reduce false-positives
     early_exit_confidence: float = 0.95
 
     model_config = SettingsConfigDict(
