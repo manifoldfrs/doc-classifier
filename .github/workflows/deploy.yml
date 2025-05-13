@@ -13,6 +13,7 @@
 # • Secrets: `VERCEL_TOKEN` (required), optional `VERCEL_ORG_ID` and
 #   `VERCEL_PROJECT_ID` for monorepos; all configured via repository → Settings
 #   → Secrets → Actions.
+# • Environment Variables: Injects `COMMIT_SHA` during build for version tracking.
 # • Caching: re-uses the same *pip* cache strategy as *ci.yml* for parity.
 # • Concurrency: limits to 1 concurrent deployment to avoid overlapping builds
 #   on force-pushes; earlier runs are cancelled.
@@ -60,6 +61,8 @@ jobs:
       - name: Checkout passed commit
         uses: actions/checkout@v4
         with:
+          # Ensure full history is fetched for git commands like rev-parse
+          fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
       # -----------------------------------------------------------
@@ -79,7 +82,14 @@ jobs:
         run: npm install --global vercel@latest
 
       # -----------------------------------------------------------
-      # 4. Deploy to Vercel – *production* target.
+      # 4. Get commit SHA and set as environment variable
+      # -----------------------------------------------------------
+      - name: Set COMMIT_SHA env variable
+        id: set_sha
+        run: echo "COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      # -----------------------------------------------------------
+      # 5. Deploy to Vercel – *production* target.
       # -----------------------------------------------------------
       - name: Deploy 🛫
         env:
@@ -92,14 +102,15 @@ jobs:
           # *Dockerfile*.  The repository already includes a Dockerfile (Step
           # 11.1) but its use is optional.  `--prod` ensures traffic is routed
           # immediately; `--confirm` skips the interactive prompt.
-          vercel --prod --confirm --token "$VERCEL_TOKEN"
+          # Pass the COMMIT_SHA to the Vercel build environment.
+          vercel --prod --confirm --token "$VERCEL_TOKEN" --build-env COMMIT_SHA=${{ env.COMMIT_SHA }}
 
       # -----------------------------------------------------------
-      # 5. (Optional) Comment deployment URL on the commit for visibility.
+      # 6. (Optional) Comment deployment URL on the commit for visibility.
       # -----------------------------------------------------------
       - name: Comment deployment URL
         if: success()
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           message: |
-            🚀 Deployed to Vercel! Check the dashboard for details.
+            🚀 Deployed to Vercel! Check the dashboard for details. The commit SHA is `${{ env.COMMIT_SHA }}`.
