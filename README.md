@@ -27,7 +27,7 @@ The service processes files individually or in batches, providing confidence sco
 
 This is the recommended way to run the service locally, as it includes all dependencies (Redis, Postgres) defined in `docker-compose.yml`.
 
-1. **Clone Repository**:
+1. **Clone Repository**
 
 2. **Create Environment File**: Copy the example and create your local `.env`:
 
