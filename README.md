@@ -35,8 +35,6 @@ This is the recommended way to run the service locally, as it includes all depen
    cp .env.example .env
    ```
 
-   _(Optional)_: Edit `.env` if you need to change default ports or configurations.
-
 3. **Generate API Key**: Create a secret API key and add it to your `.env` file.
 
    ```bash
