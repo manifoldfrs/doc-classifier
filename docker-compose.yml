@@ -32,8 +32,8 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: heron
-      POSTGRES_PASSWORD: heron
-      POSTGRES_DB: heronai
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
     volumes:
       - postgres_data:/var/lib/postgresql/data

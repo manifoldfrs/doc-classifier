@@ -1,9 +1,3 @@
-###############################################################################
-# HeronAI ─ pre-commit configuration
-#
-# Each hook runs in an isolated virtual-env managed by pre-commit, ensuring
-# consistent versions across machines and CI.
-###############################################################################
 repos:
   - repo: https://github.com/psf/black
     rev: 24.4.2

@@ -19,9 +19,9 @@ RUN pip install --upgrade --no-cache-dir pip setuptools wheel \
 
 FROM python:3.11-slim
 
-LABEL org.opencontainers.image.title="HeronAI Document Classifier Demo" \
+LABEL org.opencontainers.image.title="Document Classifier Demo" \
       org.opencontainers.image.description="FastAPI micro-service for high-throughput document classification." \
-      org.opencontainers.image.source="https://github.com/<your-org>/heronai-doc-classifier"
+      org.opencontainers.image.source="https://github.com/test/document-classifier"
 
 # Runtime env vars
 ENV PYTHONDONTWRITEBYTECODE=1 \
