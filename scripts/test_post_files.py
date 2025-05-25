@@ -13,7 +13,7 @@ DEFAULT_FILES_DIR = Path("files")  # repository sample docs
 
 def _parse_args() -> argparse.Namespace:  # noqa: D401
     parser = argparse.ArgumentParser(
-        description="Upload sample files to the /v1/files endpoint",
+        description="Upload sample files to the Document Classifier /v1/files endpoint",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(

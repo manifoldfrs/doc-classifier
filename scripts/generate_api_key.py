@@ -11,7 +11,7 @@ __all__: list[str] = []
 
 def _parse_args() -> argparse.Namespace:  # noqa: D401 – CLI helper
     parser = argparse.ArgumentParser(
-        description="Generate random API keys for the HeronAI demo",
+        description="Generate random API keys for the Document Classifier demo",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(

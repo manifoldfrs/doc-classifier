@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Model Comparison Tool for HeronAI Document Classification
+Model Comparison Tool for Document Classifier
 
 This script compares the performance of the Naive Bayes and DistilBERT models
 on a set of test documents to evaluate their classification accuracy and confidence.
