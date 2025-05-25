@@ -1,10 +1,10 @@
 TODO.md
 datasets/
 prompts/
+review/
 financial_document_classification*/
 financial_document_classification_kaggle.zip
-openapi_spec_heron.yml
-criteria_review.md
+dump.rdb
 venv
 .DS_Store
 .idea

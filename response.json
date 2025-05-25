@@ -1,0 +1,182 @@
+[
+    {
+        "filename": "0000013763.jpeg",
+        "mime_type": "application/octet-stream",
+        "size_bytes": 238477,
+        "label": "unknown",
+        "confidence": 0.0,
+        "stage_confidences": {
+            "stage_filename": null,
+            "stage_metadata": null,
+            "stage_text": null,
+            "stage_ocr": null
+        },
+        "pipeline_version": "v0.1.0",
+        "processing_ms": 906.42,
+        "request_id": "80ffa843e8d04d8e867fa6ef5b9ce47a",
+        "warnings": [],
+        "errors": []
+    },
+    {
+        "filename": "0000013791.jpeg",
+        "mime_type": "application/octet-stream",
+        "size_bytes": 70202,
+        "label": "unknown",
+        "confidence": 0.0,
+        "stage_confidences": {
+            "stage_filename": null,
+            "stage_metadata": null,
+            "stage_text": null,
+            "stage_ocr": null
+        },
+        "pipeline_version": "v0.1.0",
+        "processing_ms": 887.64,
+        "request_id": "80ffa843e8d04d8e867fa6ef5b9ce47a",
+        "warnings": [],
+        "errors": []
+    },
+    {
+        "filename": "00002039.jpeg",
+        "mime_type": "application/octet-stream",
+        "size_bytes": 54442,
+        "label": "unknown",
+        "confidence": 0.0,
+        "stage_confidences": {
+            "stage_filename": null,
+            "stage_metadata": null,
+            "stage_text": null,
+            "stage_ocr": null
+        },
+        "pipeline_version": "v0.1.0",
+        "processing_ms": 1115.21,
+        "request_id": "80ffa843e8d04d8e867fa6ef5b9ce47a",
+        "warnings": [],
+        "errors": []
+    },
+    {
+        "filename": "00004439_00004440.jpeg",
+        "mime_type": "application/octet-stream",
+        "size_bytes": 169670,
+        "label": "unknown",
+        "confidence": 0.0,
+        "stage_confidences": {
+            "stage_filename": null,
+            "stage_metadata": null,
+            "stage_text": null,
+            "stage_ocr": null
+        },
+        "pipeline_version": "v0.1.0",
+        "processing_ms": 1098.69,
+        "request_id": "80ffa843e8d04d8e867fa6ef5b9ce47a",
+        "warnings": [],
+        "errors": []
+    },
+    {
+        "filename": "00004442_00004443.jpeg",
+        "mime_type": "application/octet-stream",
+        "size_bytes": 169053,
+        "label": "unknown",
+        "confidence": 0.0,
+        "stage_confidences": {
+            "stage_filename": null,
+            "stage_metadata": null,
+            "stage_text": null,
+            "stage_ocr": null
+        },
+        "pipeline_version": "v0.1.0",
+        "processing_ms": 1016.17,
+        "request_id": "80ffa843e8d04d8e867fa6ef5b9ce47a",
+        "warnings": [],
+        "errors": []
+    },
+    {
+        "filename": "bank_statement_1.pdf",
+        "mime_type": "application/octet-stream",
+        "size_bytes": 3206,
+        "label": "bank_statement",
+        "confidence": 0.85,
+        "stage_confidences": {
+            "stage_filename": 0.85,
+            "stage_metadata": null,
+            "stage_text": 0.75,
+            "stage_ocr": null
+        },
+        "pipeline_version": "v0.1.0",
+        "processing_ms": 63.19,
+        "request_id": "80ffa843e8d04d8e867fa6ef5b9ce47a",
+        "warnings": [],
+        "errors": []
+    },
+    {
+        "filename": "bank_statement_2.pdf",
+        "mime_type": "application/octet-stream",
+        "size_bytes": 3451,
+        "label": "bank_statement",
+        "confidence": 0.85,
+        "stage_confidences": {
+            "stage_filename": 0.85,
+            "stage_metadata": null,
+            "stage_text": 0.75,
+            "stage_ocr": null
+        },
+        "pipeline_version": "v0.1.0",
+        "processing_ms": 57.14,
+        "request_id": "80ffa843e8d04d8e867fa6ef5b9ce47a",
+        "warnings": [],
+        "errors": []
+    },
+    {
+        "filename": "bank_statement_3.pdf",
+        "mime_type": "application/octet-stream",
+        "size_bytes": 3514,
+        "label": "bank_statement",
+        "confidence": 0.85,
+        "stage_confidences": {
+            "stage_filename": 0.85,
+            "stage_metadata": null,
+            "stage_text": 0.75,
+            "stage_ocr": null
+        },
+        "pipeline_version": "v0.1.0",
+        "processing_ms": 41.78,
+        "request_id": "80ffa843e8d04d8e867fa6ef5b9ce47a",
+        "warnings": [],
+        "errors": []
+    },
+    {
+        "filename": "bank_statement_cb1ec9cf.csv",
+        "mime_type": "application/octet-stream",
+        "size_bytes": 683,
+        "label": "bank_statement",
+        "confidence": 0.85,
+        "stage_confidences": {
+            "stage_filename": 0.85,
+            "stage_metadata": null,
+            "stage_text": null,
+            "stage_ocr": null
+        },
+        "pipeline_version": "v0.1.0",
+        "processing_ms": 18.62,
+        "request_id": "80ffa843e8d04d8e867fa6ef5b9ce47a",
+        "warnings": [],
+        "errors": []
+    },
+    {
+        "filename": "bank_statement_de915e6e.csv",
+        "mime_type": "application/octet-stream",
+        "size_bytes": 618,
+        "label": "bank_statement",
+        "confidence": 0.85,
+        "stage_confidences": {
+            "stage_filename": 0.85,
+            "stage_metadata": null,
+            "stage_text": null,
+            "stage_ocr": null
+        },
+        "pipeline_version": "v0.1.0",
+        "processing_ms": 18.8,
+        "request_id": "80ffa843e8d04d8e867fa6ef5b9ce47a",
+        "warnings": [],
+        "errors": []
+    }
+]

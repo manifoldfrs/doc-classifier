@@ -24,6 +24,11 @@ from src.classification import classify
 from src.core.config import Settings, get_settings
 from src.core.exceptions import StageExecutionError
 from src.utils.auth import verify_api_key
+from src.api.routes.disable_redis import (
+    get_redis_or_mock_client,
+    create_mock_job,
+    run_mock_job,
+)
 
 __all__: list[str] = [
     "router",
@@ -133,6 +138,10 @@ async def create_job(
         redis_client = await redis_client
     redis_client = cast(RedisT, redis_client)
 
+    # Check if this is our mock client
+    if redis_client.__class__.__name__ == "MockRedisClient":
+        return await create_mock_job(total_files, redis_client)
+
     job = JobRecord(total_files=total_files)
     job_key = f"{_JOB_KEY_PREFIX}{job.job_id}"
     try:
@@ -177,6 +186,11 @@ async def run_job(
     if inspect.iscoroutine(redis_client):
         redis_client = await redis_client
     redis_client = cast(RedisT, redis_client)
+
+    # Check if this is our mock client
+    if redis_client.__class__.__name__ == "MockRedisClient":
+        await run_mock_job(job_id, raw_files, redis_client, settings)
+        return
 
     job_key = f"{_JOB_KEY_PREFIX}{job_id}"
 
@@ -308,7 +322,7 @@ router: APIRouter = APIRouter(
 )
 
 # Dependency constant used to avoid function calls in default parameters (Ruff B008)
-REDIS_DEP: RedisT | Awaitable[RedisT] = Depends(get_redis_client)
+REDIS_DEP: RedisT | Awaitable[RedisT] = Depends(get_redis_or_mock_client)
 
 
 @router.get(

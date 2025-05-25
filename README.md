@@ -8,7 +8,7 @@ HeronAI is a document classification service that intelligently categorizes dive
 
 1. **Filename Analysis** → Quick heuristics based on filenames
 2. **Metadata Extraction** → PDF metadata/EXIF analysis (currently PDF first page text)
-3. **Text Content Analysis** → TF-IDF vectorization with Naive Bayes classification
+3. **Text Content Analysis** → DistilBERT transformer-based classification or TF-IDF with Naive Bayes
 4. **OCR Fallback** → Image-based text extraction when needed
 
 The service processes files individually or in batches, providing confidence scores and detailed insights about the classification process.
@@ -17,6 +17,7 @@ The service processes files individually or in batches, providing confidence sco
 
 - **Rich Format Support**: Actively parses **PDF, DOCX, CSV, TXT, and images (JPG/JPEG/PNG)**. See `ALLOWED_EXTENSIONS` to configure which types are accepted for upload.
 - **Multi-stage Pipeline**: Intelligent classification with early-exit optimization
+- **Advanced ML Models**: Choose between DistilBERT transformer model (higher accuracy) or Naive Bayes (faster, smaller footprint)
 - **Batch Processing**: Process up to 50 files in one request
 - **Async Job Support**: Background processing for larger batches (>10 files)
 - **REST API**: Clean, versioned endpoints with OpenAPI documentation
@@ -96,8 +97,12 @@ cp .env.example .env
 # 5. Ensure Tesseract OCR is installed locally if not using Docker
 #    (Installation instructions vary by OS: https://tesseract-ocr.github.io/tessdoc/Installation.html)
 
-# 6. (One-time) Train the classification model
+# 6. (One-time) Train the classification model - choose one:
+#    Option A: Train the lighter Naive Bayes model (faster, smaller)
 python scripts/train_model.py
+
+#    Option B: Train the DistilBERT transformer model (more accurate)
+python scripts/train_distilbert_model.py
 
 # 7. Run the application with hot-reload
 uvicorn src.api.app:app --reload
@@ -213,6 +218,34 @@ graph TD
 | `PROMETHEUS_ENABLED`    | `true`                     | Toggle `/metrics` endpoint (requires Prometheus libs)       |
 | `PIPELINE_VERSION`      | `v0.1.0`                   | Semantic version embedded in API responses                  |
 | `COMMIT_SHA`            | `None`                     | Git commit SHA (often set via CI/CD for tracking)           |
+
+## 🤖 ML Models
+
+HeronAI supports two different classification models:
+
+### DistilBERT Transformer Model (Default)
+
+- **Higher accuracy**: Better understanding of document context and semantics
+- **Larger size**: ~250MB model files
+- **Train with**: `python scripts/train_distilbert_model.py`
+- **Options**: See `python scripts/train_distilbert_model.py --help` for batch size, epochs, etc.
+
+### Naive Bayes + TF-IDF Model (Legacy)
+
+- **Lower resource usage**: Smaller memory footprint and faster inference
+- **Smaller size**: <1MB model file
+- **Train with**: `python scripts/train_model.py`
+
+### Compare Models
+
+To compare performance between the two models:
+
+```bash
+# Ensure both models are trained first
+python scripts/compare_models.py --verbose
+```
+
+For more details, see [docs/distilbert_model.md](docs/distilbert_model.md).
 
 ## 🧪 Testing
 

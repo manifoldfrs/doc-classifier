@@ -94,6 +94,7 @@ class Settings(BaseSettings):
     redis_url: Optional[str] = Field(
         None, alias="REDIS_URL"
     )  # Allows full URL override
+    redis_disabled: bool = Field(False, alias="REDIS_DISABLED")  # Flag to disable Redis
 
     model_config = SettingsConfigDict(
         env_file=".env",
