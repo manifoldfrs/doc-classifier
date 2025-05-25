@@ -1,7 +1,7 @@
 """
 Classification Pipeline Orchestrator
 
-This module defines the main classification pipeline for the HeronAI service.
+This module defines the main classification pipeline for the Document Classifier service.
 It orchestrates the execution of various classification stages (filename,
 metadata, text content, OCR) sequentially on an uploaded file. The pipeline
 combines the outcomes from each stage using a confidence aggregation strategy

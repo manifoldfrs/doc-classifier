@@ -1,6 +1,6 @@
-# HeronAI Document Classifier: Frontend Setup Guide
+# Document Classifier: Frontend Setup Guide
 
-This document outlines the implementation plan for a React TypeScript frontend to interact with the HeronAI Document Classifier service. It provides setup instructions, architecture guidance, and best practices for building a modern, responsive user interface.
+This document outlines the implementation plan for a React TypeScript frontend to interact with the Document Classifier service. It provides setup instructions, architecture guidance, and best practices for building a modern, responsive user interface.
 
 ## Table of Contents
 
@@ -17,13 +17,13 @@ This document outlines the implementation plan for a React TypeScript frontend t
 
 ## Overview
 
-The HeronAI frontend provides a user-friendly interface for uploading documents, viewing classification results, and managing batch processing jobs. It features a modern, responsive design with drag-and-drop file upload, real-time status updates, and rich visualizations of classification results.
+The frontend provides a user-friendly interface for uploading documents, viewing classification results, and managing batch processing jobs. It features a modern, responsive design with drag-and-drop file upload, real-time status updates, and rich visualizations of classification results.
 
 ## Prerequisites
 
 - Node.js 18+ and npm/yarn
 - Basic knowledge of React, TypeScript, and modern frontend tools
-- Access to the HeronAI API (development or production endpoint)
+- Access to the Document Classifier API (development or production endpoint)
 
 ## Project Setup
 
@@ -31,13 +31,13 @@ The HeronAI frontend provides a user-friendly interface for uploading documents,
 
 ```bash
 # Using npm
-npm create vite@latest heronai-frontend -- --template react-ts
+npm create vite@latest document-classifier-frontend -- --template react-ts
 
 # Using yarn
-yarn create vite heronai-frontend --template react-ts
+yarn create vite document-classifier-frontend --template react-ts
 
 # Navigate to the project
-cd heronai-frontend
+cd document-classifier-frontend
 ```
 
 ### 2. Install Dependencies

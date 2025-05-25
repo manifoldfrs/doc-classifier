@@ -1,6 +1,6 @@
-# HeronAI Document Classifier: Limitations, Future Work & Productionization
+# Document Classifier: Limitations, Future Work & Productionization
 
-This document outlines the current limitations of the HeronAI document classification service, proposes extensions to address them, and discusses key considerations for deploying this service in a production environment. It serves as both a transparent assessment of the system's constraints and a roadmap for future enhancements and deployment strategies.
+This document outlines the current limitations of the Document Classifier service, proposes extensions to address them, and discusses key considerations for deploying this service in a production environment. It serves as both a transparent assessment of the system's constraints and a roadmap for future enhancements and deployment strategies.
 
 ## Table of Contents
 
@@ -228,7 +228,7 @@ This document outlines the current limitations of the HeronAI document classific
 
 ## Productionization Considerations
 
-Moving the HeronAI Document Classifier from a demo/prototype to a robust, scalable, and secure production system requires careful planning across several dimensions. This section outlines key considerations based on the project's tech stack (Python/FastAPI, potentially React/TypeScript) and common cloud deployment patterns (GCP/AWS with Terraform).
+Moving the Document Classifier from a demo/prototype to a robust, scalable, and secure production system requires careful planning across several dimensions. This section outlines key considerations based on the project's tech stack (Python/FastAPI, potentially React/TypeScript) and common cloud deployment patterns (GCP/AWS with Terraform).
 
 ### Conceptual Production Architecture Diagram
 

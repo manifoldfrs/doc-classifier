@@ -1,10 +1,10 @@
-# HeronAI Document Classifier
+# Document Classifier
 
 A production-leaning document classification micro-service built with FastAPI, featuring a robust multi-stage pipeline and an asynchronous job queue for handling higher processing volumes. Designed for simplicity, testability, and maintainability, it provides intelligent document categorization with clear API interfaces.
 
 ## 📚 Overview
 
-HeronAI is a document classification service that intelligently categorizes diverse financial documents. It processes uploads through a multi-stage pipeline:
+This is a document classification service that intelligently categorizes diverse financial documents. It processes uploads through a multi-stage pipeline:
 
 1. **Filename Analysis** → Quick heuristics based on filenames
 2. **Metadata Extraction** → PDF metadata/EXIF analysis (currently PDF first page text)
@@ -221,7 +221,7 @@ graph TD
 
 ## 🤖 ML Models
 
-HeronAI supports two different classification models:
+This supports two different classification models:
 
 ### DistilBERT Transformer Model (Default)
 

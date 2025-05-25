@@ -1,6 +1,6 @@
 # DistilBERT Document Classification Model
 
-This document explains how to set up, train, and use the DistilBERT transformer model for document classification in the HeronAI system.
+This document explains how to set up, train, and use the DistilBERT transformer model for document classification in the Document Classifier system.
 
 ## Overview
 

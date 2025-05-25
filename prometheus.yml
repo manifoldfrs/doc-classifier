@@ -1,26 +1,9 @@
-# =============================================================================
-# Prometheus Configuration – HeronAI Demo
-# =============================================================================
-# This **sample** `prometheus.yml` file shows how to scrape the metrics exposed
-# by the HeronAI FastAPI application (enabled when `PROMETHEUS_ENABLED=true`).
-#
-# Notes
-# -----
-# • This config ships **scrape_interval: 5s** for fast feedback during dev –
-#   adjust upward (e.g. 15s) for production to reduce load.
-# • The service job uses a **static_config** pointing to the default localhost
-#   port.  In Docker Compose or Kubernetes change the `targets` field to the
-#   appropriate container/service DNS name.
-# • For TLS deployments update the scheme to `https` and supply TLS settings.
-# =============================================================================
-
 global:
   scrape_interval: 5s # Default interval to scrape targets
   evaluation_interval: 5s
 
 scrape_configs:
-  # HeronAI FastAPI service – exposes /metrics via prometheus_fastapi_instrumentator
-  - job_name: "heronai_service"
+  - job_name: "document_classifier_service"
     honor_labels: true
     metrics_path: "/metrics"
     static_configs:

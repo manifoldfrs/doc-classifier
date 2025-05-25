@@ -126,9 +126,7 @@ def test_root_endpoint(mock_settings: MockSettings) -> None:
         client = TestClient(test_app)
         response = client.get("/")
         assert response.status_code == 200
-        assert response.json() == {
-            "message": "HeronAI Document Classifier – FastAPI layer"
-        }
+        assert response.json() == {"message": "Document Classifier – FastAPI layer"}
 
 
 def test_app_startup_shutdown_logs(mock_settings: MockSettings):

@@ -150,7 +150,7 @@ _WRITERS: Dict[str, Tuple[str, callable[[Path, str], None]]] = {
 # CLI helpers
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate synthetic documents for HeronAI demo",
+        description="Generate synthetic documents for demo",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(

@@ -116,7 +116,7 @@ def _train(samples: int) -> Tuple[TfidfVectorizer, MultinomialNB]:  # noqa: D401
 
 def _parse_args() -> argparse.Namespace:  # noqa: D401
     parser = argparse.ArgumentParser(
-        description="Train synthetic Naive Bayes model for HeronAI demo"
+        description="Train synthetic Naive Bayes model for demo"
     )
     parser.add_argument(
         "--samples",

@@ -3,10 +3,10 @@ requires = ["setuptools>=67.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "heronai-doc-classifier"
+name = "document-classifier"
 version = "0.1.0"
-description = "HeronAI scalable document classifier demo"
-authors = [{name = "HeronAI Engineering", email = "engineering@heron.ai"}]
+description = "Document classifier demo"
+authors = [{name = "Test", email = "test@test.com"}]
 requires-python = ">=3.11"
 
 # Formatting – Black

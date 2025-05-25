@@ -47,7 +47,7 @@ def _create_fastapi_app() -> FastAPI:  # noqa: D401 – factory
     """Build and configure the FastAPI application."""
 
     app_instance = FastAPI(
-        title="HeronAI Document Classifier",
+        title="Document Classifier",
         version="0.1.0",
         docs_url="/docs",
         redoc_url=None,
@@ -71,7 +71,7 @@ def _create_fastapi_app() -> FastAPI:  # noqa: D401 – factory
 
     @app_instance.get("/", include_in_schema=False)
     async def root() -> dict[str, str]:  # noqa: D401
-        return {"message": "HeronAI Document Classifier – FastAPI layer"}
+        return {"message": "Document Classifier – FastAPI layer"}
 
     _register_routes(app_instance)
     add_exception_handlers(app_instance)
